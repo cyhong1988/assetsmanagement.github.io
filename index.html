@@ -12,42 +12,56 @@
         .section-title { font-size: 0.75rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; border-left: 3px solid #3b82f6; padding-left: 8px; margin-bottom: 12px; }
         .btn-action { background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.4); color: #60a5fa; padding: 6px 16px; border-radius: 99px; font-size: 0.75rem; transition: all 0.3s; font-weight: 600; }
         .btn-action:hover { background: #3b82f6; color: white; }
-        .usd-label { font-size: 9px; color: #60a5fa; margin-top: -4px; margin-left: 4px; display: block; }
-        .hidden { display: none; }
+        .btn-add { background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; }
+        .btn-delete { color: #ef4444; cursor: pointer; padding: 0 8px; }
         
-        /* 歷史紀錄卡片樣式 */
-        .history-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+        /* 修正換算標籤樣式：靠右對齊金額框下方 */
+        .usd-label { font-size: 10px; color: #60a5fa; margin-top: 2px; padding-right: 32px; text-align: right; width: 100%; display: block; font-family: monospace; }
+        
+        /* 股票庫存上方小標題 */
+        .stock-label { font-size: 9px; color: #94a3b8; margin-bottom: 4px; display: block; font-weight: bold; }
+
+        /* 歷史紀錄表格樣式：嚴格不滑動 */
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { padding: 8px 4px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        th { font-size: 10px; color: #94a3b8; text-transform: uppercase; }
+        td { font-family: monospace; font-size: 12px; }
+
+        @media (max-width: 640px) {
+            th, td { font-size: 10px !important; padding: 6px 2px !important; }
+            .date-col { width: 16%; }
+            .val-col { width: 18%; }
+            .diff-col { width: 14%; }
+        }
+
+        .hidden { display: none; }
     </style>
 </head>
 <body class="gradient-bg text-slate-200 min-h-screen p-4 md:p-8 font-sans">
 
     <div class="max-w-6xl mx-auto">
         <header class="flex flex-col md:flex-row justify-between items-center mb-10 border-b border-white/10 pb-8 gap-6">
-            <div class="w-full md:w-auto flex justify-between items-center">
-                <div>
-                    <h1 class="text-xl font-bold tracking-widest text-white">資產管理系統</h1>
-                    <div class="flex items-center gap-4 mt-2">
-                        <button onclick="togglePage('edit')" id="nav-edit" class="text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1">編輯</button>
-                        <button onclick="togglePage('history')" id="nav-history" class="text-xs font-bold text-slate-500 hover:text-white pb-1">歷史</button>
-                    </div>
-                </div>
-                <div class="md:hidden">
-                     <button onclick="saveData()" class="btn-action">儲存</button>
+            <div>
+                <h1 class="text-xl font-bold tracking-widest text-white">總資產管理系統</h1>
+                <div class="flex items-center gap-4 mt-2">
+                    <button onclick="togglePage('edit')" id="nav-edit" class="text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1">資產編輯</button>
+                    <button onclick="togglePage('history')" id="nav-history" class="text-xs font-bold text-slate-500 hover:text-white pb-1">歷史紀錄</button>
+                    <span id="sync-status" class="text-[9px] uppercase font-bold text-slate-500 ml-2">系統就緒</span>
                 </div>
             </div>
 
-            <div id="summary-chips" class="flex gap-8">
+            <div class="flex gap-10">
                 <div class="text-center">
                     <span class="text-[10px] text-slate-500 uppercase block mb-1">現有存款</span>
-                    <span id="global-bank-sum" class="text-xl font-mono font-bold text-emerald-400">0</span>
+                    <span id="global-bank-sum" class="text-2xl font-mono font-bold text-emerald-400">0</span>
                 </div>
                 <div class="text-center">
-                    <span class="text-[10px] text-blue-300 uppercase block mb-1">總資產</span>
-                    <span id="global-asset-sum" class="text-xl font-mono font-bold text-white">0</span>
+                    <span class="text-[10px] text-blue-300 uppercase block mb-1">現有總資產</span>
+                    <span id="global-asset-sum" class="text-2xl font-mono font-bold text-white">0</span>
                 </div>
             </div>
 
-            <div class="hidden md:flex flex-col items-end gap-3">
+            <div class="flex flex-col items-center md:items-end gap-3">
                 <div class="text-[10px] text-slate-500">USD/TWD: <span id="fx-rate-display" class="text-white font-mono">--.--</span></div>
                 <button onclick="saveData()" class="btn-action tracking-widest uppercase">儲存當前狀態</button>
             </div>
@@ -56,74 +70,112 @@
         <div id="page-edit" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div class="card p-6 rounded-2xl">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-bold text-white tracking-widest">猷 (You)</h2>
+                    <h2 class="text-lg font-bold text-white tracking-widest">猷</h2>
                     <span id="you-total" class="font-mono text-white font-bold text-lg">0</span>
                 </div>
                 <div class="section-title">銀行存款</div>
                 <div id="you-bank-list" class="space-y-2 mb-4"></div>
-                <button onclick="addRow('you-bank-list')" class="btn-add text-[10px] text-slate-400">+ 新增銀行</button>
+                <button onclick="addRow('you-bank-list')" class="btn-add">+ 新增銀行</button>
+
                 <div class="section-title mt-8">股票庫存</div>
                 <div class="grid grid-cols-2 gap-4">
-                    <input type="number" id="you-stock-tw" class="input-field font-mono" placeholder="台股 (TWD)" oninput="calculate()">
-                    <input type="number" id="you-stock-us" class="input-field font-mono text-blue-400" placeholder="美股 (USD)" oninput="calculate()">
+                    <div>
+                        <span class="stock-label">台股市值 (TWD)</span>
+                        <input type="number" id="you-stock-tw" class="input-field font-mono" placeholder="金額" oninput="calculate()">
+                    </div>
+                    <div>
+                        <span class="stock-label">美股市值 (USD)</span>
+                        <input type="number" id="you-stock-us" class="input-field font-mono text-blue-400" placeholder="金額" oninput="calculate()">
+                    </div>
                 </div>
-                <p class="text-[10px] text-slate-500 mt-2 text-right">美股折 TWD: <span id="you-stock-us-twd">0</span></p>
+                <p class="text-[10px] text-slate-500 mt-2 text-right">美股折合 TWD: <span id="you-stock-us-twd">0</span></p>
             </div>
 
             <div class="card p-6 rounded-2xl">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-lg font-bold text-white tracking-widest">玲 (Ling)</h2>
+                    <h2 class="text-lg font-bold text-white tracking-widest">玲</h2>
                     <span id="ling-total" class="font-mono text-white font-bold text-lg">0</span>
                 </div>
                 <div class="section-title">銀行存款</div>
                 <div id="ling-bank-list" class="space-y-2 mb-4"></div>
-                <button onclick="addRow('ling-bank-list')" class="btn-add text-[10px] text-slate-400">+ 新增銀行</button>
+                <button onclick="addRow('ling-bank-list')" class="btn-add">+ 新增銀行</button>
+
                 <div class="section-title mt-8">股票庫存</div>
                 <div class="grid grid-cols-2 gap-4">
-                    <input type="number" id="ling-stock-1" class="input-field font-mono" placeholder="股票 (TWD)" oninput="calculate()">
-                    <input type="number" id="ling-stock-2" class="input-field font-mono" placeholder="雄獅 (TWD)" oninput="calculate()">
+                    <div>
+                        <span class="stock-label">台股市值 (TWD)</span>
+                        <input type="number" id="ling-stock-1" class="input-field font-mono" placeholder="金額" oninput="calculate()">
+                    </div>
+                    <div>
+                        <span class="stock-label">雄獅配股市值 (TWD)</span>
+                        <input type="number" id="ling-stock-2" class="input-field font-mono" placeholder="金額" oninput="calculate()">
+                    </div>
                 </div>
             </div>
 
             <div class="lg:col-span-2 card p-6 rounded-2xl border-t-2 border-red-500/50">
-                <h2 class="text-xs font-bold text-white tracking-widest mb-6 uppercase">負債管理</h2>
+                <h2 class="text-xs font-bold text-white tracking-widest mb-6 uppercase">貸款負債管理</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div>
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-[10px] text-slate-500 uppercase">房貸</span>
+                            <span class="text-[10px] text-slate-500 uppercase">房貸明細</span>
                             <span id="loan-house-sum" class="font-mono text-red-400">0</span>
                         </div>
                         <div id="loan-house-list" class="space-y-2"></div>
+                        <button onclick="addRow('loan-house-list', '房貸名稱')" class="btn-add mt-2">+ 房貸</button>
                     </div>
                     <div>
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-[10px] text-slate-500 uppercase">信貸</span>
+                            <span class="text-[10px] text-slate-500 uppercase">信貸明細</span>
                             <span id="loan-credit-sum" class="font-mono text-red-400">0</span>
                         </div>
                         <div id="loan-credit-list" class="space-y-2"></div>
+                        <button onclick="addRow('loan-credit-list', '信貸名稱')" class="btn-add mt-2">+ 信貸</button>
                     </div>
                 </div>
             </div>
 
             <div class="lg:col-span-2 card p-6 rounded-2xl border-t-2 border-emerald-500/50">
-                <h2 class="text-xs font-bold text-white tracking-widest uppercase mb-6">月底資產結算</h2>
-                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block">結算日期</label><input type="date" id="archive-date" class="bg-transparent text-white font-mono text-xs w-full outline-none"></div>
-                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block">淨資產</label><div id="res-net" class="font-mono text-sm font-bold text-blue-400">0</div></div>
-                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block">扣房貸淨</label><div id="res-excl" class="font-mono text-sm font-bold text-emerald-400">0</div></div>
-                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block">本月增減</label><div id="res-diff" class="font-mono text-sm font-bold">0</div></div>
-                    <button onclick="archiveHistory()" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold">確認存檔</button>
+                <div class="flex justify-between items-end mb-6">
+                    <h2 class="text-xs font-bold text-white tracking-widest uppercase">月底資產結算</h2>
+                    <span class="text-[10px] text-slate-500">上次結算值: <span id="last-month-val">0</span></span>
+                </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">結算日期</label><input type="date" id="archive-date" class="bg-transparent text-white font-mono text-xs w-full outline-none"></div>
+                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">淨資產(扣所有貸款)</label><div id="res-net" class="font-mono text-sm font-bold text-blue-400">0</div></div>
+                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">淨資產(扣房貸)</label><div id="res-excl" class="font-mono text-sm font-bold text-emerald-400">0</div></div>
+                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">本月增減</label><div id="res-diff" class="font-mono text-sm font-bold">0</div></div>
+                </div>
+
+                <div class="flex justify-center">
+                    <button onclick="archiveHistory()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-12 py-3 rounded-xl text-sm font-black tracking-[0.2em] transition-all shadow-lg shadow-emerald-900/20 active:scale-95">
+                        確認結算
+                    </button>
                 </div>
             </div>
         </div>
 
         <div id="page-history" class="hidden">
-            <div class="flex justify-between items-center mb-6 px-2">
-                <h2 class="text-lg font-bold text-white tracking-widest">月底歷史紀錄</h2>
-                <button onclick="loadHistoryTable()" class="text-[10px] text-blue-400 uppercase font-bold">重新整理</button>
-            </div>
-            <div id="history-container" class="space-y-4">
+            <div class="card p-2 md:p-6 rounded-2xl">
+                <div class="flex justify-between items-center mb-6 px-2">
+                    <h2 class="text-lg font-bold text-white tracking-widest">歷史紀錄</h2>
+                    <button onclick="loadHistoryTable()" class="text-[10px] text-blue-400 uppercase font-bold tracking-widest">重新整理</button>
                 </div>
+                <table id="history-table">
+                    <thead>
+                        <tr>
+                            <th class="date-col">日期</th>
+                            <th class="val-col">總資產</th>
+                            <th class="val-col">存款</th>
+                            <th class="val-col">淨資產</th>
+                            <th class="val-col">扣房貸</th>
+                            <th class="diff-col">增減</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -133,18 +185,12 @@
         let lastMonthNetExclHouse = 0;
 
         function togglePage(page) {
-            if (page === 'history') {
-                document.getElementById('page-edit').classList.add('hidden');
-                document.getElementById('page-history').classList.remove('hidden');
-                document.getElementById('nav-history').className = "text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1";
-                document.getElementById('nav-edit').className = "text-xs font-bold text-slate-500 hover:text-white pb-1";
-                loadHistoryTable();
-            } else {
-                document.getElementById('page-edit').classList.remove('hidden');
-                document.getElementById('page-history').classList.add('hidden');
-                document.getElementById('nav-edit').className = "text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1";
-                document.getElementById('nav-history').className = "text-xs font-bold text-slate-500 hover:text-white pb-1";
-            }
+            const isHistory = (page === 'history');
+            document.getElementById('page-edit').classList.toggle('hidden', isHistory);
+            document.getElementById('page-history').classList.toggle('hidden', !isHistory);
+            document.getElementById('nav-history').className = isHistory ? "text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1" : "text-xs font-bold text-slate-500 hover:text-white pb-1";
+            document.getElementById('nav-edit').className = !isHistory ? "text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1" : "text-xs font-bold text-slate-500 hover:text-white pb-1";
+            if (isHistory) loadHistoryTable();
         }
 
         async function fetchFxRate() {
@@ -156,14 +202,15 @@
                     document.getElementById('fx-rate-display').innerText = currentFxRate.toFixed(2);
                     calculate();
                 }
-            } catch (e) { document.getElementById('fx-rate-display').innerText = "32.50"; }
+            } catch (e) { document.getElementById('fx-rate-display').innerText = "32.50 (估)"; }
         }
 
         function addRow(containerId, placeholder = '項目名稱', name = '', amount = '') {
             const container = document.getElementById(containerId);
             const div = document.createElement('div');
-            div.className = "flex flex-col mb-2";
+            div.className = "flex flex-col mb-3";
             const valAttr = (amount === '' || amount === 0 || amount === '0') ? '' : `value="${amount}"`;
+            
             div.innerHTML = `
                 <div class="flex gap-2 items-center">
                     <input type="text" class="input-field text-xs item-name" value="${name}" placeholder="${placeholder}">
@@ -177,31 +224,39 @@
         }
 
         function calculate() {
-            function sumList(selector) {
-                let total = 0;
+            function getSums(selector) {
+                let currentSum = 0;
                 document.querySelectorAll(selector).forEach(parent => {
                     const name = parent.querySelector('.item-name').value;
                     const amountInput = parent.querySelector('.item-amount');
                     const hint = parent.querySelector('.usd-hint');
                     let val = parseFloat(amountInput.value) || 0;
+                    
+                    let finalTwd = val;
                     if (name.includes("美金定存")) {
-                        const twdVal = val * currentFxRate;
-                        if (val > 0) { hint.innerText = `≈ TWD ${Math.floor(twdVal).toLocaleString()}`; hint.classList.remove('hidden'); }
-                        else { hint.classList.add('hidden'); }
-                        total += twdVal;
-                    } else { hint.classList.add('hidden'); total += val; }
+                        finalTwd = val * currentFxRate;
+                        if (val > 0) {
+                            hint.innerText = `≈ TWD ${Math.floor(finalTwd).toLocaleString()}`;
+                            hint.classList.remove('hidden');
+                        } else { hint.classList.add('hidden'); }
+                    } else { hint.classList.add('hidden'); }
+
+                    if (!name.includes("玲媽未投")) {
+                        currentSum += finalTwd;
+                    }
                 });
-                return total;
+                return currentSum;
             }
 
-            let youBank = sumList('#you-bank-list > div');
+            const youBank = getSums('#you-bank-list > div');
             const youStockTW = parseFloat(document.getElementById('you-stock-tw').value) || 0;
             const youStockUS = parseFloat(document.getElementById('you-stock-us').value) || 0;
-            const youTotal = youBank + youStockTW + (youStockUS * currentFxRate);
-            document.getElementById('you-stock-us-twd').innerText = Math.floor(youStockUS * currentFxRate).toLocaleString();
+            const youStockUS_TWD = youStockUS * currentFxRate;
+            document.getElementById('you-stock-us-twd').innerText = Math.floor(youStockUS_TWD).toLocaleString();
+            const youTotal = youBank + youStockTW + youStockUS_TWD;
             document.getElementById('you-total').innerText = Math.floor(youTotal).toLocaleString();
 
-            let lingBank = sumList('#ling-bank-list > div');
+            const lingBank = getSums('#ling-bank-list > div');
             const lingStock1 = parseFloat(document.getElementById('ling-stock-1').value) || 0;
             const lingStock2 = parseFloat(document.getElementById('ling-stock-2').value) || 0;
             const lingTotal = lingBank + lingStock1 + lingStock2;
@@ -212,8 +267,9 @@
             let credit = 0; document.querySelectorAll('#loan-credit-list .item-amount').forEach(el => credit += parseFloat(el.value) || 0);
             document.getElementById('loan-credit-sum').innerText = Math.floor(credit).toLocaleString();
 
+            const totalBank = youBank + lingBank;
             const totalAsset = youTotal + lingTotal;
-            document.getElementById('global-bank-sum').innerText = Math.floor(youBank + lingBank).toLocaleString();
+            document.getElementById('global-bank-sum').innerText = Math.floor(totalBank).toLocaleString();
             document.getElementById('global-asset-sum').innerText = Math.floor(totalAsset).toLocaleString();
 
             const netAsset = totalAsset - house - credit;
@@ -239,46 +295,15 @@
             };
             try {
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
-                alert("儲存成功！");
-            } catch (e) { alert("儲存失敗"); }
-        }
-
-        async function loadHistoryTable() {
-            const container = document.getElementById('history-container');
-            container.innerHTML = '<div class="text-center text-slate-500 py-10 uppercase tracking-widest text-xs">載入數據中...</div>';
-            try {
-                const response = await fetch(`${GAS_URL}?action=readHistory`);
-                const rows = await response.json();
-                if (rows.length <= 1) {
-                    container.innerHTML = '<div class="text-center text-slate-500 py-10">尚無歷史紀錄</div>';
-                    return;
+                if(status) {
+                    status.innerText = "已儲存狀態";
+                    setTimeout(() => status.innerText = "系統就緒", 2000);
                 }
-                container.innerHTML = '';
-                rows.slice(1).reverse().forEach(row => {
-                    let displayDate = String(row[0]).split('T')[0];
-                    const isNeg = String(row[5]).includes('-');
-                    
-                    const card = document.createElement('div');
-                    card.className = "history-card";
-                    card.innerHTML = `
-                        <div class="flex justify-between items-start border-b border-white/5 pb-2 mb-3">
-                            <span class="text-xs font-mono text-slate-400">${displayDate}</span>
-                            <span class="text-sm font-bold ${isNeg ? 'text-red-400' : 'text-emerald-400'}">${row[5]}</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-y-3">
-                            <div><label class="text-[9px] text-slate-500 block uppercase">總資產</label><span class="text-white font-mono text-sm">${row[1]}</span></div>
-                            <div><label class="text-[9px] text-slate-500 block uppercase">現有存款</label><span class="text-emerald-400 font-mono text-sm">${row[2]}</span></div>
-                            <div><label class="text-[9px] text-slate-500 block uppercase">淨資產</label><span class="text-blue-400 font-mono text-sm">${row[3]}</span></div>
-                            <div><label class="text-[9px] text-slate-500 block uppercase">扣房貸淨值</label><span class="text-emerald-500 font-mono text-sm">${row[4]}</span></div>
-                        </div>
-                    `;
-                    container.appendChild(card);
-                });
-            } catch (e) { container.innerHTML = '<div class="text-center text-red-400 py-10">讀取失敗</div>'; }
+            } catch (e) { if(status) status.innerText = "儲存失敗"; }
         }
 
         async function archiveHistory() {
-            if (!confirm("確認要永久結算本月數據至 History 分頁嗎？")) return;
+            if (!confirm("確認結算本月數據？")) return;
             const payload = {
                 action: 'ARCHIVE_HISTORY',
                 date: document.getElementById('archive-date').value || new Date().toISOString().slice(0, 10),
@@ -290,9 +315,33 @@
             };
             try {
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-                alert("結算成功！");
-                location.reload();
+                alert("結算成功！"); location.reload();
             } catch (e) { alert("結算失敗"); }
+        }
+
+        async function loadHistoryTable() {
+            const tbody = document.getElementById('history-table-body');
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10">載入中...</td></tr>';
+            try {
+                const response = await fetch(`${GAS_URL}?action=readHistory`);
+                const rows = await response.json();
+                if (rows.length <= 1) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10">無紀錄</td></tr>'; return; }
+                tbody.innerHTML = '';
+                rows.slice(1).reverse().forEach(row => {
+                    let d = String(row[0]); 
+                    if(d.includes('T')) d = d.split('T')[0];
+                    const displayDate = d.slice(2); 
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="text-slate-400 font-bold">${displayDate}</td>
+                        <td class="text-white">${row[1]}</td>
+                        <td class="text-emerald-400/80">${row[2]}</td>
+                        <td class="text-blue-400/80">${row[3]}</td>
+                        <td class="text-emerald-500 font-bold">${row[4]}</td>
+                        <td class="${String(row[5]).includes('-') ? 'text-red-400' : 'text-emerald-400'}">${row[5]}</td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
         async function loadData() {
@@ -300,27 +349,29 @@
                 const response = await fetch(GAS_URL);
                 const res = await response.json();
                 lastMonthNetExclHouse = res.lastMonthNetExclHouse || 0;
+                document.getElementById('last-month-val').innerText = lastMonthNetExclHouse.toLocaleString();
                 const data = res.currentState || {};
+                const defaultYou = ["中信", "新光", "Richart", "台新外幣帳戶", "元大", "國泰CUBE", "王道", "玉山", "樂天", "永豐大戶", "上海商銀", "美金定存"];
+                const defaultLing = ["中信", "玉山", "Richart", "永豐大戶", "樂天", "玲媽未投金額"];
                 
-                if (data.you_banks) data.you_banks.forEach(b => addRow('you-bank-list', '銀行', b.name, b.amount == 0 ? '' : b.amount));
-                else ["中信", "新光", "Richart", "台新外幣帳戶", "元大", "國泰CUBE", "王道", "玉山", "樂天", "永豐大戶", "上海商銀", "美金定存"].forEach(n => addRow('you-bank-list', '銀行', n, ''));
-
-                if (data.ling_banks) data.ling_banks.forEach(b => addRow('ling-bank-list', '銀行', b.name, b.amount == 0 ? '' : b.amount));
-                else ["中信", "玉山", "Richart", "永豐大戶", "樂天", "玲媽未投金額"].forEach(n => addRow('ling-bank-list', '銀行', n, ''));
-
-                if (data.house_loans) data.house_loans.forEach(l => addRow('loan-house-list', '名稱', l.name, l.amount == 0 ? '' : l.amount));
-                else addRow('loan-house-list', '名稱', '房貸', '');
-
-                if (data.credit_loans) data.credit_loans.forEach(l => addRow('loan-credit-list', '名稱', l.name, l.amount == 0 ? '' : l.amount));
-                else addRow('loan-credit-list', '名稱', '信貸', '');
+                if (data.you_banks && data.you_banks.length) data.you_banks.forEach(b => addRow('you-bank-list', '銀行', b.name, b.amount));
+                else defaultYou.forEach(n => addRow('you-bank-list', '銀行', n, ''));
+                
+                if (data.ling_banks && data.ling_banks.length) data.ling_banks.forEach(b => addRow('ling-bank-list', '銀行', b.name, b.amount));
+                else defaultLing.forEach(n => addRow('ling-bank-list', '銀行', n, ''));
+                
+                if (data.house_loans && data.house_loans.length) data.house_loans.forEach(l => addRow('loan-house-list', '名稱', l.name, l.amount));
+                else addRow('loan-house-list', '房貸名稱', '房貸', '');
+                
+                if (data.credit_loans && data.credit_loans.length) data.credit_loans.forEach(l => addRow('loan-credit-list', '名稱', l.name, l.amount));
 
                 if (data.stocks) {
-                    document.getElementById('you-stock-tw').value = data.stocks.you_tw == 0 ? '' : data.stocks.you_tw;
-                    document.getElementById('you-stock-us').value = data.stocks.you_us == 0 ? '' : data.stocks.you_us;
-                    document.getElementById('ling-stock-1').value = data.stocks.ling_1 == 0 ? '' : data.stocks.ling_1;
-                    document.getElementById('ling-stock-2').value = data.stocks.ling_2 == 0 ? '' : data.stocks.ling_2;
+                    document.getElementById('you-stock-tw').value = data.stocks.you_tw || '';
+                    document.getElementById('you-stock-us').value = data.stocks.you_us || '';
+                    document.getElementById('ling-stock-1').value = data.stocks.ling_1 || '';
+                    document.getElementById('ling-stock-2').value = data.stocks.ling_2 || '';
                 }
-            } catch (e) { }
+            } catch (e) { console.error(e); }
             document.getElementById('archive-date').value = new Date().toISOString().slice(0, 10);
             calculate();
         }
