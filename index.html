@@ -322,69 +322,83 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-        function exportToExcel() {
-            if (fetchedHistory.length === 0) { alert("請先點擊重新整理歷史紀錄以確保數據最新"); return; }
-            const wb = XLSX.utils.book_new();
-            const today = new Date().toLocaleDateString('zh-TW');
-            const dashboardData = [
-                ["猷 & 玲 總資產管理報表", "", "", ""],
-                ["產出日期:", today, "", ""],
-                [""],
-                ["【 核心指標 】", "金額 (TWD)", "說明", ""],
-                ["現有總資產", document.getElementById('global-asset-sum').innerText, "包含存款與股票市值", ""],
-                ["現有總存款", document.getElementById('global-bank-sum').innerText, "僅計算銀行帳戶現金", ""],
-                ["淨資產 (扣除所有貸款)", document.getElementById('res-net').innerText, "真實身價", ""],
-                ["淨資產 (僅扣除房貸)", document.getElementById('res-excl').innerText, "生活品質指標", ""],
-                [""],
-                ["【 匯率參考 】", "", "", ""],
-                ["USD/TWD 參考匯率", currentFxRate.toFixed(2), "API 實時獲取", ""]
-            ];
-            const wsDash = XLSX.utils.aoa_to_sheet(dashboardData);
-            wsDash['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]; 
-            wsDash['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 10 }];
-            XLSX.utils.book_append_sheet(wb, wsDash, "財務儀表板");
+function exportToExcel() {
+    if (fetchedHistory.length === 0) {
+        alert("請先點擊重新整理歷史紀錄以確保數據最新");
+        return;
+    }
 
-            const detailData = [
-                ["資產明細清單", "", "", ""],
-                ["分類", "項目名稱", "原始金額", "折合台幣 (估)"],
-                ["[ 猷 ] 銀行存款"],
-                ...Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => {
-                    const name = d.querySelector('.item-name').value;
-                    const amt = d.querySelector('.item-amount').value;
-                    let twd = amt;
-                    if (name.includes("美金")) twd = Math.floor(amt * currentFxRate);
-                    return ["銀行", name, amt, twd];
-                }),
-                ["[ 猷 ] 股票資產", "台股市值", document.getElementById('you-stock-tw').value, document.getElementById('you-stock-tw').value],
-                ["[ 猷 ] 股票資產", "美股市值 (USD)", document.getElementById('you-stock-us').value, Math.floor(document.getElementById('you-stock-us').value * currentFxRate)],
-                ["個人總計", "猷", "", document.getElementById('you-total').innerText],
-                [""],
-                ["[ 玲 ] 銀行存款"],
-                ...Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ["銀行", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, d.querySelector('.item-amount').value]),
-                ["[ 玲 ] 股票資產", "台股市值", document.getElementById('ling-stock-1').value, document.getElementById('ling-stock-1').value],
-                ["[ 玲 ] 股票資產", "備註市值", document.getElementById('ling-stock-2').value, document.getElementById('ling-stock-2').value],
-                ["個人總計", "玲", "", document.getElementById('ling-total').innerText],
-                [""],
-                ["[ 貸款/負債 ]"],
-                ...Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ["房貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value]),
-                ...Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ["信貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value])
-            ];
-            const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
-            wsDetail['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
-            XLSX.utils.book_append_sheet(wb, wsDetail, "資產明細表");
+    const wb = XLSX.utils.book_new();
+    const dateStr = new Date().toISOString().slice(0, 10);
 
-            const historyHeader = ["結算日期", "總資產", "存款", "淨資產(扣所有)", "淨資產(扣房貸)", "本月增減"];
-            const historyRows = fetchedHistory.slice(1).map(row => {
-                let d = String(row[0]);
-                if(d.includes('T')) d = d.split('T')[0];
-                return [d, row[1], row[2], row[3], row[4], row[5]];
-            });
-            const wsHistory = XLSX.utils.aoa_to_sheet([historyHeader, ...historyRows]);
-            wsHistory['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 15 }];
-            XLSX.utils.book_append_sheet(wb, wsHistory, "歷史趨勢紀錄");
-            const dateStr = new Date().toISOString().slice(0, 10);
-            XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
-        }
+    // --- 1. 每月結算總表 (模仿圖片範本2) ---
+    // 這裡從歷史紀錄中抓取數據，轉換成橫向排列
+    const months = fetchedHistory.slice(1); // 排除標題
+    const monthHeaders = ["項目", ...months.map(row => {
+        let d = String(row[0]);
+        if(d.includes('T')) d = d.split('T')[0];
+        return d.split('-')[1] + "月"; // 顯示幾月
+    })];
+
+    const rowActual = ["本月實際餘額", ...months.map(row => row[1])];
+    const rowNetAll = ["本月淨資產(扣所有)", ...months.map(row => row[3])];
+    const rowCash = ["本月現金(存款)", ...months.map(row => row[2])];
+    const rowNetExclHouse = ["扣房貸淨資產", ...months.map(row => row[4])];
+    const rowDiff = ["淨資產增減", ...months.map(row => row[5])];
+    const rowNote = ["備註", ...months.map(() => "")]; // 留白供手寫或未來擴充
+
+    const summaryData = [
+        ["2025年 財務結算統計 (橫向報表)"],
+        monthHeaders,
+        rowActual,
+        rowNetAll,
+        rowCash,
+        rowNetExclHouse,
+        rowDiff,
+        rowNote
+    ];
+
+    const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+    
+    // 設定寬度
+    wsSum['!cols'] = [{ wch: 20 }, ...months.map(() => ({ wch: 15 }))];
+
+    // --- 2. 個人資產明細表 (模仿圖片範本1) ---
+    const detailData = [
+        ["資產明細報表", "", "", "產出日期: " + dateStr],
+        ["分類", "項目名稱", "原始金額", "折合台幣 (估)"],
+        ["[ 猷 ] 銀行存款"],
+        ...Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => {
+            const name = d.querySelector('.item-name').value;
+            const amt = d.querySelector('.item-amount').value;
+            let twd = name.includes("美金") ? Math.floor(amt * currentFxRate) : amt;
+            return ["銀行", name, amt, twd];
+        }),
+        ["[ 猷 ] 股票", "台股", document.getElementById('you-stock-tw').value, document.getElementById('you-stock-tw').value],
+        ["[ 猷 ] 股票", "美股(USD)", document.getElementById('you-stock-us').value, Math.floor(document.getElementById('you-stock-us').value * currentFxRate)],
+        ["個人總計", "猷", "", document.getElementById('you-total').innerText],
+        [""],
+        ["[ 玲 ] 銀行存款"],
+        ...Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ["銀行", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, d.querySelector('.item-amount').value]),
+        ["[ 玲 ] 股票", "台股市值", document.getElementById('ling-stock-1').value, document.getElementById('ling-stock-1').value],
+        ["[ 玲 ] 股票", "其他備註", document.getElementById('ling-stock-2').value, document.getElementById('ling-stock-2').value],
+        ["個人總計", "玲", "", document.getElementById('ling-total').innerText],
+        [""],
+        ["[ 貸款負債 ]"],
+        ...Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ["房貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value]),
+        ...Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ["信貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value])
+    ];
+
+    const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
+    wsDetail['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
+
+    // 將工作表加入活頁簿
+    XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
+    XLSX.utils.book_append_sheet(wb, wsDetail, "當前資產明細");
+
+    // 執行下載
+    XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
+}
 
         async function loadData() {
             try {
