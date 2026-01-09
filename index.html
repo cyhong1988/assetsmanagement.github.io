@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>猷 & 玲 總資產管理系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
         .card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
@@ -24,50 +25,14 @@
         #history-container td { font-family: monospace; font-size: 14px; }
 
         @media (max-width: 640px) {
-            #history-table thead { display: none; } /* 手機版隱藏傳統表頭 */
-            #history-table-body { 
-                display: flex; 
-                flex-direction: column; 
-                gap: 16px; 
-                padding: 10px 4px; 
-            }
-            #history-table-body tr { 
-                display: block; 
-                background: rgba(30, 41, 59, 0.5); 
-                border: 1px solid rgba(255, 255, 255, 0.1); 
-                border-radius: 16px; 
-                padding: 16px;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            }
-            #history-table-body td { 
-                display: flex; 
-                justify-content: space-between; 
-                align-items: center;
-                padding: 6px 0 !important; 
-                border: none !important; 
-                font-size: 15px !important; /* 強制內容字體放大至 15px */
-            }
-            /* 第一個欄位（日期）特別處理：作為標題 */
-            #history-table-body td:nth-child(1) { 
-                font-size: 18px !important; 
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; 
-                margin-bottom: 8px; 
-                padding-bottom: 10px !important;
-                color: #fff !important;
-            }
+            #history-table thead { display: none; }
+            #history-table-body { display: flex; flex-direction: column; gap: 16px; padding: 10px 4px; }
+            #history-table-body tr { display: block; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+            #history-table-body td { display: flex; justify-content: space-between; align-items: center; padding: 6px 0 !important; border: none !important; font-size: 15px !important; }
+            #history-table-body td:nth-child(1) { font-size: 18px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; margin-bottom: 8px; padding-bottom: 10px !important; color: #fff !important; }
             #history-table-body td:nth-child(1)::before { content: "結算日期"; font-size: 10px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; }
-
-            /* 其他欄位補上標籤 */
-            #history-table-body td:not(:first-child)::before { 
-                content: attr(data-label); 
-                font-size: 12px; /* 標籤字體 */
-                color: #94a3b8; 
-                font-weight: normal;
-                font-family: sans-serif;
-            }
+            #history-table-body td:not(:first-child)::before { content: attr(data-label); font-size: 12px; color: #94a3b8; font-weight: normal; font-family: sans-serif; }
         }
-        /* --- 結束 --- */
-
         .hidden { display: none; }
     </style>
 </head>
@@ -156,7 +121,7 @@
                 </div>
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                     <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">結算日期</label><input type="date" id="archive-date" class="bg-transparent text-white font-mono text-xs w-full outline-none"></div>
-                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">淨資產(扣所有貸款)</label><div id="res-net" class="font-mono text-sm font-bold text-blue-400">0</div></div>
+                    <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">淨資產(扣所有)</label><div id="res-net" class="font-mono text-sm font-bold text-blue-400">0</div></div>
                     <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">淨資產(扣房貸)</label><div id="res-excl" class="font-mono text-sm font-bold text-emerald-400">0</div></div>
                     <div class="bg-black/20 p-3 rounded-lg"><label class="text-[9px] text-slate-500 block uppercase">本月增減</label><div id="res-diff" class="font-mono text-sm font-bold">0</div></div>
                 </div>
@@ -168,9 +133,12 @@
 
         <div id="page-history" class="hidden">
             <div class="card p-4 md:p-6 rounded-2xl" id="history-container">
-                <div class="flex justify-between items-center mb-6 px-2">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 px-2 gap-4">
                     <h2 class="text-xl font-bold text-white tracking-widest">歷史紀錄</h2>
-                    <button onclick="loadHistoryTable()" class="btn-action text-[10px]">重新整理</button>
+                    <div class="flex gap-2">
+                        <button onclick="exportToExcel()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest transition-all">匯出 EXCEL 報表</button>
+                        <button onclick="loadHistoryTable()" class="btn-action text-[10px]">重新整理</button>
+                    </div>
                 </div>
                 <div class="overflow-hidden">
                     <table id="history-table">
@@ -192,10 +160,10 @@
     </div>
 
     <script>
-        // --- 核心 JS 保持不變，僅確保 loadHistoryTable 的資料與標籤對應 ---
         const GAS_URL = 'https://script.google.com/macros/s/AKfycbzT-nQswx9GUQ8JHEp1zpr4HDXSHrz7s8kTqIe3FD9eUzqqNb7UlBGnSGoLqInyQ3i1/exec'; 
         let currentFxRate = 32.5;
         let lastMonthNetExclHouse = 0;
+        let fetchedHistory = []; // 用於存放下載用的完整歷史數據
 
         function togglePage(page) {
             const isHistory = (page === 'history');
@@ -330,6 +298,7 @@
             try {
                 const response = await fetch(`${GAS_URL}?action=readHistory`);
                 const rows = await response.json();
+                fetchedHistory = rows; 
                 if (rows.length <= 1) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10">無紀錄</td></tr>'; return; }
                 tbody.innerHTML = '';
                 rows.slice(1).reverse().forEach(row => {
@@ -337,7 +306,6 @@
                     if(d.includes('T')) d = d.split('T')[0];
                     const displayDate = d.slice(2); 
                     const tr = document.createElement('tr');
-                    // data-label 對應 CSS 內容，確保每個資訊在手機版都有大字體標籤
                     tr.innerHTML = `
                         <td data-label="日期" class="text-white font-bold">${displayDate}</td>
                         <td data-label="總資產" class="text-white font-bold">${row[1]}</td>
@@ -348,6 +316,51 @@
                     tbody.appendChild(tr);
                 });
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
+        }
+
+        // --- 匯出 Excel 功能 ---
+        function exportToExcel() {
+            if (fetchedHistory.length === 0) { alert("請先重新整理歷史紀錄以讀取數據"); return; }
+
+            const wb = XLSX.utils.book_new();
+
+            // 1. 整理當前明細 (Sheet 1)
+            const currentData = [
+                ["分類", "項目名稱", "金額 (TWD/USD)", "備註"],
+                ["--- 猷 ---"],
+                ...Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ["銀行存款", d.querySelector('.item-name').value, d.querySelector('.item-amount').value]),
+                ["股票-台股", "台股市值", document.getElementById('you-stock-tw').value],
+                ["股票-美股", "美股市值 (USD)", document.getElementById('you-stock-us').value, `約 TWD ${document.getElementById('you-stock-us-twd').innerText}`],
+                ["個人總計", "", document.getElementById('you-total').innerText],
+                [],
+                ["--- 玲 ---"],
+                ...Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ["銀行存款", d.querySelector('.item-name').value, d.querySelector('.item-amount').value]),
+                ["股票-台股", "台股市值", document.getElementById('ling-stock-1').value],
+                ["股票-備註", "雄獅配股", document.getElementById('ling-stock-2').value],
+                ["個人總計", "", document.getElementById('ling-total').innerText],
+                [],
+                ["--- 負債 ---"],
+                ...Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ["房貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value]),
+                ...Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ["信貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value]),
+                [],
+                ["--- 結算總匯 ---"],
+                ["現有總存款", "", document.getElementById('global-bank-sum').innerText],
+                ["現有總資產", "", document.getElementById('global-asset-sum').innerText],
+                ["淨資產 (扣所有)", "", document.getElementById('res-net').innerText],
+                ["淨資產 (扣房貸)", "", document.getElementById('res-excl').innerText],
+                ["匯率參考 (USD/TWD)", "", currentFxRate.toFixed(2)]
+            ];
+            const wsCurrent = XLSX.utils.aoa_to_sheet(currentData);
+            XLSX.utils.book_append_sheet(wb, wsCurrent, "當前資產明細");
+
+            // 2. 歷史紀錄 (Sheet 2)
+            // 將原始雲端數據直接轉換成 Sheet
+            const wsHistory = XLSX.utils.aoa_to_sheet(fetchedHistory);
+            XLSX.utils.book_append_sheet(wb, wsHistory, "歷史結算紀錄");
+
+            // 下載 Excel
+            const dateStr = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `資產管理報表_${dateStr}.xlsx`);
         }
 
         async function loadData() {
