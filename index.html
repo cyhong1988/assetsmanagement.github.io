@@ -129,7 +129,7 @@
     </div>
 
     <script>
-        const GAS_URL = 'https://script.google.com/macros/s/AKfycbxbYPyWLw2Da1goYFISnTpsSGfnuxNGEkhJIOU2iozNDQA7xnVROFjBM5rKj98foX0h/exec'; 
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbzT-nQswx9GUQ8JHEp1zpr4HDXSHrz7s8kTqIe3FD9eUzqqNb7UlBGnSGoLqInyQ3i1/exec'; 
         let currentFxRate = 32.5;
 
         async function fetchFxRate() {
@@ -212,7 +212,7 @@
             mode: 'no-cors', 
             body: JSON.stringify(data) 
         });
-        status.innerText = "已同步至 Data2";
+        status.innerText = "同步完成";
         setTimeout(() => status.innerText = "系統連線中", 3000);
     } catch (e) { status.innerText = "儲存失敗"; }
 }
