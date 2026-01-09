@@ -6,6 +6,7 @@
     <title>猷 & 玲 總資產 management 系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
         .gradient-bg { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); }
         .card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
@@ -15,9 +16,11 @@
         .btn-action:hover { background: #3b82f6; color: white; }
         .btn-add { background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); padding: 2px 8px; border-radius: 4px; font-size: 10px; }
         .btn-delete { color: #ef4444; cursor: pointer; padding: 0 8px; }
+        .drag-handle { color: #475569; cursor: grab; padding: 0 4px; font-size: 14px; user-select: none; }
+        .drag-handle:active { cursor: grabbing; }
+        .sortable-ghost { opacity: 0.3; background: #3b82f6 !important; }
         .usd-label { font-size: 10px; color: #60a5fa; margin-top: 2px; padding-right: 32px; text-align: right; width: 100%; display: block; font-family: monospace; }
         .stock-label { font-size: 9px; color: #94a3b8; margin-bottom: 4px; display: block; font-weight: bold; }
-
         #history-container table { width: 100%; border-collapse: collapse; }
         #history-container th, #history-container td { padding: 12px 8px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
         #history-container th { font-size: 11px; color: #94a3b8; text-transform: uppercase; }
@@ -36,7 +39,6 @@
     </style>
 </head>
 <body class="gradient-bg text-slate-200 min-h-screen p-4 md:p-8 font-sans">
-
     <div class="max-w-6xl mx-auto">
         <header class="flex flex-col md:flex-row justify-between items-center mb-10 border-b border-white/10 pb-8 gap-8">
             <div class="flex flex-col items-center md:items-start">
@@ -46,7 +48,6 @@
                     <button onclick="togglePage('history')" id="nav-history" class="text-xs font-bold text-slate-500 hover:text-white pb-1 transition-all">歷史紀錄</button>
                 </div>
             </div>
-
             <div class="flex gap-12">
                 <div class="text-center">
                     <span class="text-[10px] text-slate-500 uppercase block mb-1 tracking-wider">現有存款</span>
@@ -57,7 +58,6 @@
                     <span id="global-asset-sum" class="text-2xl font-mono font-bold text-white">0</span>
                 </div>
             </div>
-
             <div class="flex flex-col items-center">
                 <div class="text-center mb-6"> <span class="text-[10px] text-slate-500 uppercase block mb-0.5 tracking-wider">USD/TWD 參考匯率</span>
                     <span id="fx-rate-display" class="text-lg text-white font-mono font-bold">--.--</span>
@@ -168,6 +168,15 @@
         let lastMonthNetExclHouse = 0;
         let fetchedHistory = [];
 
+        function initSortable(id) {
+            new Sortable(document.getElementById(id), {
+                handle: '.drag-handle',
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                onEnd: () => calculate()
+            });
+        }
+
         function togglePage(page) {
             const isHistory = (page === 'history');
             document.getElementById('page-edit').classList.toggle('hidden', isHistory);
@@ -196,6 +205,7 @@
             const valAttr = (amount === '' || amount === 0 || amount === '0') ? '' : `value="${amount}"`;
             div.innerHTML = `
                 <div class="flex gap-2 items-center">
+                    <span class="drag-handle">≡</span>
                     <input type="text" class="input-field text-xs item-name" value="${name}" placeholder="${placeholder}">
                     <input type="number" class="input-field w-32 font-mono text-right text-xs item-amount" ${valAttr} placeholder="金額" oninput="calculate()">
                     <span class="btn-delete text-[10px]" onclick="this.parentElement.parentElement.remove(); calculate();">✕</span>
@@ -210,9 +220,11 @@
             function getSums(selector) {
                 let currentSum = 0;
                 document.querySelectorAll(selector).forEach(parent => {
-                    const name = parent.querySelector('.item-name').value;
+                    const nameEl = parent.querySelector('.item-name');
                     const amountInput = parent.querySelector('.item-amount');
                     const hint = parent.querySelector('.usd-hint');
+                    if (!nameEl || !amountInput) return;
+                    const name = nameEl.value;
                     let val = parseFloat(amountInput.value) || 0;
                     let finalTwd = val;
                     if (name.includes("美金定存")) {
@@ -226,7 +238,6 @@
                 });
                 return currentSum;
             }
-
             const youBank = getSums('#you-bank-list > div');
             const youStockTW = parseFloat(document.getElementById('you-stock-tw').value) || 0;
             const youStockUS = parseFloat(document.getElementById('you-stock-us').value) || 0;
@@ -234,33 +245,26 @@
             document.getElementById('you-stock-us-twd').innerText = Math.floor(youStockUS_TWD).toLocaleString();
             const youTotal = youBank + youStockTW + youStockUS_TWD;
             document.getElementById('you-total').innerText = Math.floor(youTotal).toLocaleString();
-
             const lingBank = getSums('#ling-bank-list > div');
             const lingStock1 = parseFloat(document.getElementById('ling-stock-1').value) || 0;
             const lingStock2 = parseFloat(document.getElementById('ling-stock-2').value) || 0;
             const lingTotal = lingBank + lingStock1 + lingStock2;
             document.getElementById('ling-total').innerText = Math.floor(lingTotal).toLocaleString();
-
             let house = 0; document.querySelectorAll('#loan-house-list .item-amount').forEach(el => house += parseFloat(el.value) || 0);
             document.getElementById('loan-house-sum').innerText = Math.floor(house).toLocaleString();
             let credit = 0; document.querySelectorAll('#loan-credit-list .item-amount').forEach(el => credit += parseFloat(el.value) || 0);
             document.getElementById('loan-credit-sum').innerText = Math.floor(credit).toLocaleString();
-
             const totalBank = youBank + lingBank;
             const totalAsset = youTotal + lingTotal;
             document.getElementById('global-bank-sum').innerText = Math.floor(totalBank).toLocaleString();
             document.getElementById('global-asset-sum').innerText = Math.floor(totalAsset).toLocaleString();
-
             const netAsset = totalAsset - house - credit;
             const netAssetExclHouse = totalAsset - house;
             const diff = netAssetExclHouse - lastMonthNetExclHouse;
-
             document.getElementById('res-net').innerText = Math.floor(netAsset).toLocaleString();
             document.getElementById('res-excl').innerText = Math.floor(netAssetExclHouse).toLocaleString();
-            
-            // --- 修正處：移除正數的 + 符號 ---
             const diffEl = document.getElementById('res-diff');
-            diffEl.innerText = Math.floor(diff).toLocaleString(); // 這裡原本有 (diff >= 0 ? "+" : "")
+            diffEl.innerText = Math.floor(diff).toLocaleString();
             diffEl.className = "font-mono text-sm font-bold " + (diff >= 0 ? "text-emerald-400" : "text-red-400");
         }
 
@@ -280,32 +284,19 @@
             } catch (e) { if(status) status.innerText = "儲存失敗"; }
         }
 
-        // 修改後的 archiveHistory 函式
         async function archiveHistory() {
             if (!confirm("確認結算本月數據？系統將會先自動儲存當前明細。")) return;
-
             const status = document.getElementById('sync-status');
             if(status) status.innerText = "自動儲存中...";
-
             try {
-                // 1. 先執行儲存當前明細
                 const currentData = {
                     you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                     ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                     house_loans: Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                     credit_loans: Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
-                    stocks: { 
-                        you_tw: document.getElementById('you-stock-tw').value, 
-                        you_us: document.getElementById('you-stock-us').value, 
-                        ling_1: document.getElementById('ling-stock-1').value, 
-                        ling_2: document.getElementById('ling-stock-2').value 
-                    }
+                    stocks: { you_tw: document.getElementById('you-stock-tw').value, you_us: document.getElementById('you-stock-us').value, ling_1: document.getElementById('ling-stock-1').value, ling_2: document.getElementById('ling-stock-2').value }
                 };
-                
-                // 發送儲存請求 (使用 POST)
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(currentData) });
-
-                // 2. 執行結算動作
                 if(status) status.innerText = "正在結算紀錄...";
                 const payload = {
                     action: 'ARCHIVE_HISTORY',
@@ -316,18 +307,14 @@
                     netAssetExclHouse: document.getElementById('res-excl').innerText.replace(/,/g, ''),
                     diff: document.getElementById('res-diff').innerText.replace(/,/g, '') 
                 };
-
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-                
                 alert("儲存並結算成功！");
-                location.reload(); // 重新整理以獲取最新狀態
+                location.reload();
             } catch (e) {
-                console.error(e);
-                alert("結算過程中發生錯誤，請檢查網路連線。");
+                alert("結算失敗");
                 if(status) status.innerText = "結算失敗";
             }
         }
-
 
         async function loadHistoryTable() {
             const tbody = document.getElementById('history-table-body');
@@ -343,7 +330,6 @@
                     if(d.includes('T')) d = d.split('T')[0];
                     const displayDate = d.slice(2); 
                     const tr = document.createElement('tr');
-                    // 這裡表格顯示維持原有邏輯，判斷負號變紅
                     tr.innerHTML = `
                         <td data-label="日期" class="text-white font-bold">${displayDate}</td>
                         <td data-label="總資產" class="text-white font-bold">${row[1]}</td>
@@ -356,11 +342,9 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
+        // 修改後的匯出功能
         function exportToExcel() {
-            if (fetchedHistory.length === 0) {
-                alert("請先點擊重新整理歷史紀錄以確保數據最新");
-                return;
-            }
+            if (fetchedHistory.length === 0) { alert("請先重新整理歷史紀錄"); return; }
             const wb = XLSX.utils.book_new();
             const dateStr = new Date().toISOString().slice(0, 10);
             const months = fetchedHistory.slice(1);
@@ -369,14 +353,26 @@
                 if(d.includes('T')) d = d.split('T')[0];
                 return d.split('-')[1] + "月";
             })];
-            const rowActual = ["本月實際餘額", ...months.map(row => row[1])];
-            const rowNetAll = ["本月淨資產(扣所有)", ...months.map(row => row[3])];
-            const rowCash = ["本月現金(存款)", ...months.map(row => row[2])];
-            const rowNetExclHouse = ["扣房貸淨資產", ...months.map(row => row[4])];
-            const rowDiff = ["淨資產增減", ...months.map(row => row[5])];
-            const rowNote = ["備註", ...months.map(() => "")];
-            const summaryData = [["2025年 財務結算統計"], monthHeaders, rowActual, rowNetAll, rowCash, rowNetExclHouse, rowDiff, rowNote];
+            const summaryData = [
+                ["2025年 財務結算統計"], 
+                monthHeaders, 
+                ["本月實際餘額", ...months.map(row => row[1])],
+                ["本月淨資產(扣所有)", ...months.map(row => row[3])],
+                ["本月現金(存款)", ...months.map(row => row[2])],
+                ["扣房貸淨資產", ...months.map(row => row[4])],
+                ["淨資產增減", ...months.map(row => row[5])],
+                ["備註", ...months.map(() => "")]
+            ];
+            
             const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+
+            // --- 強制注入微軟正黑體樣式 ---
+            for (let cell in wsSum) {
+                if (cell[0] === '!') continue; 
+                if (!wsSum[cell].s) wsSum[cell].s = {};
+                wsSum[cell].s.font = { name: "微軟正黑體" };
+            }
+
             wsSum['!cols'] = [{ wch: 20 }, ...months.map(() => ({ wch: 15 }))];
             XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
             XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
@@ -391,13 +387,13 @@
                 const data = res.currentState || {};
                 const defaultYou = ["中信", "新光", "Richart", "台新外幣帳戶", "元大", "國泰CUBE", "王道", "玉山", "樂天", "永豐大戶", "上海商銀", "美金定存"];
                 const defaultLing = ["中信", "玉山", "Richart", "永豐大戶", "樂天", "玲媽未投金額"];
-                if (data.you_banks && data.you_banks.length) data.you_banks.forEach(b => addRow('you-bank-list', '銀行', b.name, b.amount));
+                if (data.you_banks?.length) data.you_banks.forEach(b => addRow('you-bank-list', '銀行', b.name, b.amount));
                 else defaultYou.forEach(n => addRow('you-bank-list', '銀行', n, ''));
-                if (data.ling_banks && data.ling_banks.length) data.ling_banks.forEach(b => addRow('ling-bank-list', '銀行', b.name, b.amount));
+                if (data.ling_banks?.length) data.ling_banks.forEach(b => addRow('ling-bank-list', '銀行', b.name, b.amount));
                 else defaultLing.forEach(n => addRow('ling-bank-list', '銀行', n, ''));
-                if (data.house_loans && data.house_loans.length) data.house_loans.forEach(l => addRow('loan-house-list', '名稱', l.name, l.amount));
+                if (data.house_loans?.length) data.house_loans.forEach(l => addRow('loan-house-list', '名稱', l.name, l.amount));
                 else addRow('loan-house-list', '房貸名稱', '房貸', '');
-                if (data.credit_loans && data.credit_loans.length) data.credit_loans.forEach(l => addRow('loan-credit-list', '名稱', l.name, l.amount));
+                if (data.credit_loans?.length) data.credit_loans.forEach(l => addRow('loan-credit-list', '名稱', l.name, l.amount));
                 if (data.stocks) {
                     document.getElementById('you-stock-tw').value = data.stocks.you_tw || '';
                     document.getElementById('you-stock-us').value = data.stocks.you_us || '';
@@ -405,6 +401,10 @@
                     document.getElementById('ling-stock-2').value = data.stocks.ling_2 || '';
                 }
             } catch (e) { console.error(e); }
+            initSortable('you-bank-list');
+            initSortable('ling-bank-list');
+            initSortable('loan-house-list');
+            initSortable('loan-credit-list');
             document.getElementById('archive-date').value = new Date().toISOString().slice(0, 10);
             calculate();
         }
