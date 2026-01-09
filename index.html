@@ -298,6 +298,8 @@
                 };
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(currentData) });
                 if(status) status.innerText = "正在結算紀錄...";
+                
+                // 這裡同時傳送個人資產統計，以便未來讀取
                 const payload = {
                     action: 'ARCHIVE_HISTORY',
                     date: document.getElementById('archive-date').value || new Date().toISOString().slice(0, 10),
@@ -305,7 +307,9 @@
                     totalBank: document.getElementById('global-bank-sum').innerText.replace(/,/g, ''),
                     netAsset: document.getElementById('res-net').innerText.replace(/,/g, ''),
                     netAssetExclHouse: document.getElementById('res-excl').innerText.replace(/,/g, ''),
-                    diff: document.getElementById('res-diff').innerText.replace(/,/g, '') 
+                    diff: document.getElementById('res-diff').innerText.replace(/,/g, ''),
+                    youTotal: document.getElementById('you-total').innerText.replace(/,/g, ''), // 個人統計
+                    lingTotal: document.getElementById('ling-total').innerText.replace(/,/g, '') // 個人統計
                 };
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
                 alert("儲存並結算成功！");
@@ -342,17 +346,20 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-        // 修改後的匯出功能
+        // 修改後的匯出功能：加入個人資產統計
         function exportToExcel() {
             if (fetchedHistory.length === 0) { alert("請先重新整理歷史紀錄"); return; }
             const wb = XLSX.utils.book_new();
             const dateStr = new Date().toISOString().slice(0, 10);
             const months = fetchedHistory.slice(1);
+            
             const monthHeaders = ["項目", ...months.map(row => {
                 let d = String(row[0]);
                 if(d.includes('T')) d = d.split('T')[0];
                 return d.split('-')[1] + "月";
             })];
+
+            // 組織數據
             const summaryData = [
                 ["2025年 財務結算統計"], 
                 monthHeaders, 
@@ -361,19 +368,23 @@
                 ["本月現金(存款)", ...months.map(row => row[2])],
                 ["扣房貸淨資產", ...months.map(row => row[4])],
                 ["淨資產增減", ...months.map(row => row[5])],
+                ["----------------", ...months.map(() => "----------")],
+                ["猷 個人總計 (含美股)", ...months.map(row => row[6] || "無資料")], // 假設 GAS 第 7 欄存猷總計
+                ["玲 個人總計", ...months.map(row => row[7] || "無資料")],           // 假設 GAS 第 8 欄存玲總計
+                ["----------------", ...months.map(() => "----------")],
                 ["備註", ...months.map(() => "")]
             ];
             
             const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
 
-            // --- 強制注入微軟正黑體樣式 ---
+            // 強制注入微軟正黑體樣式
             for (let cell in wsSum) {
                 if (cell[0] === '!') continue; 
                 if (!wsSum[cell].s) wsSum[cell].s = {};
                 wsSum[cell].s.font = { name: "微軟正黑體" };
             }
 
-            wsSum['!cols'] = [{ wch: 20 }, ...months.map(() => ({ wch: 15 }))];
+            wsSum['!cols'] = [{ wch: 25 }, ...months.map(() => ({ wch: 15 }))];
             XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
             XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
         }
