@@ -39,30 +39,34 @@
 <body class="gradient-bg text-slate-200 min-h-screen p-4 md:p-8 font-sans">
 
     <div class="max-w-6xl mx-auto">
-        <header class="flex flex-col md:flex-row justify-between items-center mb-10 border-b border-white/10 pb-8 gap-6">
-            <div>
-                <h1 class="text-xl font-bold tracking-widest text-white">總資產管理系統</h1>
-                <div class="flex items-center gap-4 mt-2">
-                    <button onclick="togglePage('edit')" id="nav-edit" class="text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1">資產編輯</button>
-                    <button onclick="togglePage('history')" id="nav-history" class="text-xs font-bold text-slate-500 hover:text-white pb-1">歷史紀錄</button>
-                    <span id="sync-status" class="text-[9px] uppercase font-bold text-slate-500 ml-2">系統就緒</span>
+        <header class="flex flex-col md:flex-row justify-between items-center mb-10 border-b border-white/10 pb-8 gap-8">
+            <div class="flex flex-col items-center md:items-start">
+                <h1 class="text-xl font-bold tracking-widest text-white mb-2">總資產管理系統</h1>
+                <div class="flex items-center gap-6">
+                    <button onclick="togglePage('edit')" id="nav-edit" class="text-xs font-bold text-blue-400 border-b-2 border-blue-400 pb-1 transition-all">資產編輯</button>
+                    <button onclick="togglePage('history')" id="nav-history" class="text-xs font-bold text-slate-500 hover:text-white pb-1 transition-all">歷史紀錄</button>
                 </div>
             </div>
 
-            <div class="flex gap-10">
+            <div class="flex gap-12">
                 <div class="text-center">
-                    <span class="text-[10px] text-slate-500 uppercase block mb-1">現有存款</span>
+                    <span class="text-[10px] text-slate-500 uppercase block mb-1 tracking-wider">現有存款</span>
                     <span id="global-bank-sum" class="text-2xl font-mono font-bold text-emerald-400">0</span>
                 </div>
                 <div class="text-center">
-                    <span class="text-[10px] text-blue-300 uppercase block mb-1">現有總資產</span>
+                    <span class="text-[10px] text-blue-300 uppercase block mb-1 tracking-wider">現有總資產</span>
                     <span id="global-asset-sum" class="text-2xl font-mono font-bold text-white">0</span>
                 </div>
             </div>
 
-            <div class="flex flex-col items-center md:items-end gap-3">
-                <div class="text-[10px] text-slate-500">USD/TWD: <span id="fx-rate-display" class="text-white font-mono">--.--</span></div>
-                <button onclick="saveData()" class="btn-action tracking-widest uppercase">儲存當前狀態</button>
+            <div class="flex flex-col items-center">
+                <div class="text-center mb-6"> <span class="text-[10px] text-slate-500 uppercase block mb-0.5 tracking-wider">USD/TWD 參考匯率</span>
+                    <span id="fx-rate-display" class="text-lg text-white font-mono font-bold">--.--</span>
+                </div>
+                <div class="flex flex-col items-center">
+                    <button onclick="saveData()" class="btn-action tracking-widest uppercase px-10">儲存並更新</button>
+                    <span id="sync-status" class="text-[9px] uppercase font-bold text-slate-500 mt-2 text-center block">系統就緒</span>
+                </div>
             </div>
         </header>
 
@@ -163,7 +167,7 @@
         const GAS_URL = 'https://script.google.com/macros/s/AKfycbzT-nQswx9GUQ8JHEp1zpr4HDXSHrz7s8kTqIe3FD9eUzqqNb7UlBGnSGoLqInyQ3i1/exec'; 
         let currentFxRate = 32.5;
         let lastMonthNetExclHouse = 0;
-        let fetchedHistory = []; // 用於存放下載用的完整歷史數據
+        let fetchedHistory = [];
 
         function togglePage(page) {
             const isHistory = (page === 'history');
@@ -183,7 +187,7 @@
                     document.getElementById('fx-rate-display').innerText = currentFxRate.toFixed(2);
                     calculate();
                 }
-            } catch (e) { document.getElementById('fx-rate-display').innerText = "32.50 (估)"; }
+            } catch (e) { document.getElementById('fx-rate-display').innerText = "32.50"; }
         }
 
         function addRow(containerId, placeholder = '項目名稱', name = '', amount = '') {
@@ -271,7 +275,7 @@
             };
             try {
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
-                if(status) { status.innerText = "已儲存狀態"; setTimeout(() => status.innerText = "系統就緒", 2000); }
+                if(status) { status.innerText = "已成功儲存並更新"; setTimeout(() => status.innerText = "系統就緒", 2000); }
             } catch (e) { if(status) status.innerText = "儲存失敗"; }
         }
 
@@ -318,86 +322,69 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-// --- 進階匯出 Excel 功能 ---
-function exportToExcel() {
-    if (fetchedHistory.length === 0) { alert("請先點擊重新整理歷史紀錄以確保數據最新"); return; }
+        function exportToExcel() {
+            if (fetchedHistory.length === 0) { alert("請先點擊重新整理歷史紀錄以確保數據最新"); return; }
+            const wb = XLSX.utils.book_new();
+            const today = new Date().toLocaleDateString('zh-TW');
+            const dashboardData = [
+                ["猷 & 玲 總資產管理報表", "", "", ""],
+                ["產出日期:", today, "", ""],
+                [""],
+                ["【 核心指標 】", "金額 (TWD)", "說明", ""],
+                ["現有總資產", document.getElementById('global-asset-sum').innerText, "包含存款與股票市值", ""],
+                ["現有總存款", document.getElementById('global-bank-sum').innerText, "僅計算銀行帳戶現金", ""],
+                ["淨資產 (扣除所有貸款)", document.getElementById('res-net').innerText, "真實身價", ""],
+                ["淨資產 (僅扣除房貸)", document.getElementById('res-excl').innerText, "生活品質指標", ""],
+                [""],
+                ["【 匯率參考 】", "", "", ""],
+                ["USD/TWD 參考匯率", currentFxRate.toFixed(2), "API 實時獲取", ""]
+            ];
+            const wsDash = XLSX.utils.aoa_to_sheet(dashboardData);
+            wsDash['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]; 
+            wsDash['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 10 }];
+            XLSX.utils.book_append_sheet(wb, wsDash, "財務儀表板");
 
-    const wb = XLSX.utils.book_new();
-    const today = new Date().toLocaleDateString('zh-TW');
+            const detailData = [
+                ["資產明細清單", "", "", ""],
+                ["分類", "項目名稱", "原始金額", "折合台幣 (估)"],
+                ["[ 猷 ] 銀行存款"],
+                ...Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => {
+                    const name = d.querySelector('.item-name').value;
+                    const amt = d.querySelector('.item-amount').value;
+                    let twd = amt;
+                    if (name.includes("美金")) twd = Math.floor(amt * currentFxRate);
+                    return ["銀行", name, amt, twd];
+                }),
+                ["[ 猷 ] 股票資產", "台股市值", document.getElementById('you-stock-tw').value, document.getElementById('you-stock-tw').value],
+                ["[ 猷 ] 股票資產", "美股市值 (USD)", document.getElementById('you-stock-us').value, Math.floor(document.getElementById('you-stock-us').value * currentFxRate)],
+                ["個人總計", "猷", "", document.getElementById('you-total').innerText],
+                [""],
+                ["[ 玲 ] 銀行存款"],
+                ...Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ["銀行", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, d.querySelector('.item-amount').value]),
+                ["[ 玲 ] 股票資產", "台股市值", document.getElementById('ling-stock-1').value, document.getElementById('ling-stock-1').value],
+                ["[ 玲 ] 股票資產", "備註市值", document.getElementById('ling-stock-2').value, document.getElementById('ling-stock-2').value],
+                ["個人總計", "玲", "", document.getElementById('ling-total').innerText],
+                [""],
+                ["[ 貸款/負債 ]"],
+                ...Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ["房貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value]),
+                ...Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ["信貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value])
+            ];
+            const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
+            wsDetail['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
+            XLSX.utils.book_append_sheet(wb, wsDetail, "資產明細表");
 
-    // --- 分頁 1: 財務總覽 (精美儀表板) ---
-    const dashboardData = [
-        ["猷 & 玲 總資產管理報表", "", "", ""],
-        ["產出日期:", today, "", ""],
-        [""],
-        ["【 核心指標 】", "金額 (TWD)", "說明", ""],
-        ["現有總資產", document.getElementById('global-asset-sum').innerText, "包含存款與股票市值", ""],
-        ["現有總存款", document.getElementById('global-bank-sum').innerText, "僅計算銀行帳戶現金", ""],
-        ["淨資產 (扣除所有貸款)", document.getElementById('res-net').innerText, "真實身價", ""],
-        ["淨資產 (僅扣除房貸)", document.getElementById('res-excl').innerText, "生活品質指標", ""],
-        [""],
-        ["【 匯率參考 】", "", "", ""],
-        ["USD/TWD 參考匯率", currentFxRate.toFixed(2), "API 實時獲取", ""]
-    ];
-
-    const wsDash = XLSX.utils.aoa_to_sheet(dashboardData);
-    
-    // 設定標題樣式 (透過 !merges 合併單元格讓它更好看)
-    wsDash['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }]; 
-    wsDash['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 10 }];
-
-    XLSX.utils.book_append_sheet(wb, wsDash, "財務儀表板");
-
-    // --- 分頁 2: 資產明細表 ---
-    const detailData = [
-        ["資產明細清單", "", "", ""],
-        ["分類", "項目名稱", "原始金額", "折合台幣 (估)"],
-        ["[ 猷 ] 銀行存款"],
-        ...Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => {
-            const name = d.querySelector('.item-name').value;
-            const amt = d.querySelector('.item-amount').value;
-            let twd = amt;
-            if (name.includes("美金")) twd = Math.floor(amt * currentFxRate);
-            return ["銀行", name, amt, twd];
-        }),
-        ["[ 猷 ] 股票資產", "台股市值", document.getElementById('you-stock-tw').value, document.getElementById('you-stock-tw').value],
-        ["[ 猷 ] 股票資產", "美股市值 (USD)", document.getElementById('you-stock-us').value, Math.floor(document.getElementById('you-stock-us').value * currentFxRate)],
-        ["個人總計", "猷", "", document.getElementById('you-total').innerText],
-        [""],
-        ["[ 玲 ] 銀行存款"],
-        ...Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ["銀行", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, d.querySelector('.item-amount').value]),
-        ["[ 玲 ] 股票資產", "台股市值", document.getElementById('ling-stock-1').value, document.getElementById('ling-stock-1').value],
-        ["[ 玲 ] 股票資產", "備註市值", document.getElementById('ling-stock-2').value, document.getElementById('ling-stock-2').value],
-        ["個人總計", "玲", "", document.getElementById('ling-total').innerText],
-        [""],
-        ["[ 貸款/負債 ]"],
-        ...Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ["房貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value]),
-        ...Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ["信貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value])
-    ];
-
-    const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
-    wsDetail['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
-    XLSX.utils.book_append_sheet(wb, wsDetail, "資產明細表");
-
-    // --- 分頁 3: 歷史趨勢紀錄 ---
-    // 歷史紀錄直接使用 fetchedHistory，並將表頭中文化
-    const historyHeader = ["結算日期", "總資產", "存款", "淨資產(扣所有)", "淨資產(扣房貸)", "本月增減"];
-    const historyRows = fetchedHistory.slice(1).map(row => {
-        // 格式化日期為 YYYY/MM/DD
-        let d = String(row[0]);
-        if(d.includes('T')) d = d.split('T')[0];
-        return [d, row[1], row[2], row[3], row[4], row[5]];
-    });
-
-    const wsHistory = XLSX.utils.aoa_to_sheet([historyHeader, ...historyRows]);
-    wsHistory['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 15 }];
-    XLSX.utils.book_append_sheet(wb, wsHistory, "歷史趨勢紀錄");
-
-    // 下載檔案
-    const dateStr = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
-}
-
+            const historyHeader = ["結算日期", "總資產", "存款", "淨資產(扣所有)", "淨資產(扣房貸)", "本月增減"];
+            const historyRows = fetchedHistory.slice(1).map(row => {
+                let d = String(row[0]);
+                if(d.includes('T')) d = d.split('T')[0];
+                return [d, row[1], row[2], row[3], row[4], row[5]];
+            });
+            const wsHistory = XLSX.utils.aoa_to_sheet([historyHeader, ...historyRows]);
+            wsHistory['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 18 }, { wch: 15 }];
+            XLSX.utils.book_append_sheet(wb, wsHistory, "歷史趨勢紀錄");
+            const dateStr = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
+        }
 
         async function loadData() {
             try {
@@ -408,7 +395,6 @@ function exportToExcel() {
                 const data = res.currentState || {};
                 const defaultYou = ["中信", "新光", "Richart", "台新外幣帳戶", "元大", "國泰CUBE", "王道", "玉山", "樂天", "永豐大戶", "上海商銀", "美金定存"];
                 const defaultLing = ["中信", "玉山", "Richart", "永豐大戶", "樂天", "玲媽未投金額"];
-                
                 if (data.you_banks && data.you_banks.length) data.you_banks.forEach(b => addRow('you-bank-list', '銀行', b.name, b.amount));
                 else defaultYou.forEach(n => addRow('you-bank-list', '銀行', n, ''));
                 if (data.ling_banks && data.ling_banks.length) data.ling_banks.forEach(b => addRow('ling-bank-list', '銀行', b.name, b.amount));
@@ -416,7 +402,6 @@ function exportToExcel() {
                 if (data.house_loans && data.house_loans.length) data.house_loans.forEach(l => addRow('loan-house-list', '名稱', l.name, l.amount));
                 else addRow('loan-house-list', '房貸名稱', '房貸', '');
                 if (data.credit_loans && data.credit_loans.length) data.credit_loans.forEach(l => addRow('loan-credit-list', '名稱', l.name, l.amount));
-
                 if (data.stocks) {
                     document.getElementById('you-stock-tw').value = data.stocks.you_tw || '';
                     document.getElementById('you-stock-us').value = data.stocks.you_us || '';
@@ -427,7 +412,6 @@ function exportToExcel() {
             document.getElementById('archive-date').value = new Date().toISOString().slice(0, 10);
             calculate();
         }
-
         window.onload = () => { fetchFxRate(); loadData(); };
     </script>
 </body>
