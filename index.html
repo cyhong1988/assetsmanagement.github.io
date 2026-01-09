@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>猷 & 玲 總資產管理系統</title>
+    <title>猷 & 玲 總資產 management 系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
@@ -18,7 +18,6 @@
         .usd-label { font-size: 10px; color: #60a5fa; margin-top: 2px; padding-right: 32px; text-align: right; width: 100%; display: block; font-family: monospace; }
         .stock-label { font-size: 9px; color: #94a3b8; margin-bottom: 4px; display: block; font-weight: bold; }
 
-        /* --- 歷史紀錄樣式優化 --- */
         #history-container table { width: 100%; border-collapse: collapse; }
         #history-container th, #history-container td { padding: 12px 8px; text-align: left; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
         #history-container th { font-size: 11px; color: #94a3b8; text-transform: uppercase; }
@@ -258,8 +257,10 @@
 
             document.getElementById('res-net').innerText = Math.floor(netAsset).toLocaleString();
             document.getElementById('res-excl').innerText = Math.floor(netAssetExclHouse).toLocaleString();
+            
+            // --- 修正處：移除正數的 + 符號 ---
             const diffEl = document.getElementById('res-diff');
-            diffEl.innerText = (diff >= 0 ? "+" : "") + Math.floor(diff).toLocaleString();
+            diffEl.innerText = Math.floor(diff).toLocaleString(); // 這裡原本有 (diff >= 0 ? "+" : "")
             diffEl.className = "font-mono text-sm font-bold " + (diff >= 0 ? "text-emerald-400" : "text-red-400");
         }
 
@@ -279,22 +280,54 @@
             } catch (e) { if(status) status.innerText = "儲存失敗"; }
         }
 
+        // 修改後的 archiveHistory 函式
         async function archiveHistory() {
-            if (!confirm("確認結算本月數據？")) return;
-            const payload = {
-                action: 'ARCHIVE_HISTORY',
-                date: document.getElementById('archive-date').value || new Date().toISOString().slice(0, 10),
-                totalAsset: document.getElementById('global-asset-sum').innerText,
-                totalBank: document.getElementById('global-bank-sum').innerText,
-                netAsset: document.getElementById('res-net').innerText,
-                netAssetExclHouse: document.getElementById('res-excl').innerText,
-                diff: document.getElementById('res-diff').innerText
-            };
+            if (!confirm("確認結算本月數據？系統將會先自動儲存當前明細。")) return;
+
+            const status = document.getElementById('sync-status');
+            if(status) status.innerText = "自動儲存中...";
+
             try {
+                // 1. 先執行儲存當前明細
+                const currentData = {
+                    you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
+                    ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
+                    house_loans: Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
+                    credit_loans: Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
+                    stocks: { 
+                        you_tw: document.getElementById('you-stock-tw').value, 
+                        you_us: document.getElementById('you-stock-us').value, 
+                        ling_1: document.getElementById('ling-stock-1').value, 
+                        ling_2: document.getElementById('ling-stock-2').value 
+                    }
+                };
+                
+                // 發送儲存請求 (使用 POST)
+                await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(currentData) });
+
+                // 2. 執行結算動作
+                if(status) status.innerText = "正在結算紀錄...";
+                const payload = {
+                    action: 'ARCHIVE_HISTORY',
+                    date: document.getElementById('archive-date').value || new Date().toISOString().slice(0, 10),
+                    totalAsset: document.getElementById('global-asset-sum').innerText.replace(/,/g, ''),
+                    totalBank: document.getElementById('global-bank-sum').innerText.replace(/,/g, ''),
+                    netAsset: document.getElementById('res-net').innerText.replace(/,/g, ''),
+                    netAssetExclHouse: document.getElementById('res-excl').innerText.replace(/,/g, ''),
+                    diff: document.getElementById('res-diff').innerText.replace(/,/g, '') 
+                };
+
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-                alert("結算成功！"); location.reload();
-            } catch (e) { alert("結算失敗"); }
+                
+                alert("儲存並結算成功！");
+                location.reload(); // 重新整理以獲取最新狀態
+            } catch (e) {
+                console.error(e);
+                alert("結算過程中發生錯誤，請檢查網路連線。");
+                if(status) status.innerText = "結算失敗";
+            }
         }
+
 
         async function loadHistoryTable() {
             const tbody = document.getElementById('history-table-body');
@@ -310,6 +343,7 @@
                     if(d.includes('T')) d = d.split('T')[0];
                     const displayDate = d.slice(2); 
                     const tr = document.createElement('tr');
+                    // 這裡表格顯示維持原有邏輯，判斷負號變紅
                     tr.innerHTML = `
                         <td data-label="日期" class="text-white font-bold">${displayDate}</td>
                         <td data-label="總資產" class="text-white font-bold">${row[1]}</td>
@@ -322,83 +356,31 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-function exportToExcel() {
-    if (fetchedHistory.length === 0) {
-        alert("請先點擊重新整理歷史紀錄以確保數據最新");
-        return;
-    }
-
-    const wb = XLSX.utils.book_new();
-    const dateStr = new Date().toISOString().slice(0, 10);
-
-    // --- 1. 每月結算總表 (模仿圖片範本2) ---
-    // 這裡從歷史紀錄中抓取數據，轉換成橫向排列
-    const months = fetchedHistory.slice(1); // 排除標題
-    const monthHeaders = ["項目", ...months.map(row => {
-        let d = String(row[0]);
-        if(d.includes('T')) d = d.split('T')[0];
-        return d.split('-')[1] + "月"; // 顯示幾月
-    })];
-
-    const rowActual = ["本月實際餘額", ...months.map(row => row[1])];
-    const rowNetAll = ["本月淨資產(扣所有)", ...months.map(row => row[3])];
-    const rowCash = ["本月現金(存款)", ...months.map(row => row[2])];
-    const rowNetExclHouse = ["扣房貸淨資產", ...months.map(row => row[4])];
-    const rowDiff = ["淨資產增減", ...months.map(row => row[5])];
-    const rowNote = ["備註", ...months.map(() => "")]; // 留白供手寫或未來擴充
-
-    const summaryData = [
-        ["2025年 財務結算統計 (橫向報表)"],
-        monthHeaders,
-        rowActual,
-        rowNetAll,
-        rowCash,
-        rowNetExclHouse,
-        rowDiff,
-        rowNote
-    ];
-
-    const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
-    
-    // 設定寬度
-    wsSum['!cols'] = [{ wch: 20 }, ...months.map(() => ({ wch: 15 }))];
-
-    // --- 2. 個人資產明細表 (模仿圖片範本1) ---
-    const detailData = [
-        ["資產明細報表", "", "", "產出日期: " + dateStr],
-        ["分類", "項目名稱", "原始金額", "折合台幣 (估)"],
-        ["[ 猷 ] 銀行存款"],
-        ...Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => {
-            const name = d.querySelector('.item-name').value;
-            const amt = d.querySelector('.item-amount').value;
-            let twd = name.includes("美金") ? Math.floor(amt * currentFxRate) : amt;
-            return ["銀行", name, amt, twd];
-        }),
-        ["[ 猷 ] 股票", "台股", document.getElementById('you-stock-tw').value, document.getElementById('you-stock-tw').value],
-        ["[ 猷 ] 股票", "美股(USD)", document.getElementById('you-stock-us').value, Math.floor(document.getElementById('you-stock-us').value * currentFxRate)],
-        ["個人總計", "猷", "", document.getElementById('you-total').innerText],
-        [""],
-        ["[ 玲 ] 銀行存款"],
-        ...Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ["銀行", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, d.querySelector('.item-amount').value]),
-        ["[ 玲 ] 股票", "台股市值", document.getElementById('ling-stock-1').value, document.getElementById('ling-stock-1').value],
-        ["[ 玲 ] 股票", "其他備註", document.getElementById('ling-stock-2').value, document.getElementById('ling-stock-2').value],
-        ["個人總計", "玲", "", document.getElementById('ling-total').innerText],
-        [""],
-        ["[ 貸款負債 ]"],
-        ...Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ["房貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value]),
-        ...Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ["信貸", d.querySelector('.item-name').value, d.querySelector('.item-amount').value, "-" + d.querySelector('.item-amount').value])
-    ];
-
-    const wsDetail = XLSX.utils.aoa_to_sheet(detailData);
-    wsDetail['!cols'] = [{ wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
-
-    // 將工作表加入活頁簿
-    XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
-    XLSX.utils.book_append_sheet(wb, wsDetail, "當前資產明細");
-
-    // 執行下載
-    XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
-}
+        function exportToExcel() {
+            if (fetchedHistory.length === 0) {
+                alert("請先點擊重新整理歷史紀錄以確保數據最新");
+                return;
+            }
+            const wb = XLSX.utils.book_new();
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const months = fetchedHistory.slice(1);
+            const monthHeaders = ["項目", ...months.map(row => {
+                let d = String(row[0]);
+                if(d.includes('T')) d = d.split('T')[0];
+                return d.split('-')[1] + "月";
+            })];
+            const rowActual = ["本月實際餘額", ...months.map(row => row[1])];
+            const rowNetAll = ["本月淨資產(扣所有)", ...months.map(row => row[3])];
+            const rowCash = ["本月現金(存款)", ...months.map(row => row[2])];
+            const rowNetExclHouse = ["扣房貸淨資產", ...months.map(row => row[4])];
+            const rowDiff = ["淨資產增減", ...months.map(row => row[5])];
+            const rowNote = ["備註", ...months.map(() => "")];
+            const summaryData = [["2025年 財務結算統計"], monthHeaders, rowActual, rowNetAll, rowCash, rowNetExclHouse, rowDiff, rowNote];
+            const wsSum = XLSX.utils.aoa_to_sheet(summaryData);
+            wsSum['!cols'] = [{ wch: 20 }, ...months.map(() => ({ wch: 15 }))];
+            XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
+            XLSX.writeFile(wb, `猷玲財務報表_${dateStr}.xlsx`);
+        }
 
         async function loadData() {
             try {
