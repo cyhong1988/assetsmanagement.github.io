@@ -396,7 +396,6 @@ function exportToExcel() {
             if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄"); return; }
             const wb = XLSX.utils.book_new();
             
-            // 用於記錄合併儲存格的陣列
             const merges = [];
             
             // --- 第一個分頁：資產與負債明細 ---
@@ -405,8 +404,7 @@ function exportToExcel() {
                 ["項目類型", "名稱", "金額 (TWD/USD)", "", "對象", "總資產額"]
             ];
 
-            // 輔助函式：記錄合併範圍 (A欄)
-            function addMergeRange(startRow, count, label) {
+            function addMergeRange(startRow, count) {
                 if (count > 1) {
                     merges.push({ s: { r: startRow, c: 0 }, e: { r: startRow + count - 1, c: 0 } });
                 }
@@ -430,10 +428,10 @@ function exportToExcel() {
             detailRows.push(["個人資產明細 (玲)", "雄獅配股", Number(document.getElementById('ling-stock-2').value) || 0]);
             addMergeRange(lingStart, detailRows.length - lingStart);
 
-            detailRows.push(["", "", ""]); // 空行
+            detailRows.push(["", "", ""]); 
 
             // 3. 處理 房貸
-            const houseStart = detailRows.length + 1; // +1 是因為下面先推了一個標題 row
+            const houseStart = detailRows.length + 1;
             detailRows.push(["負債明細", "房貸項目", ""]);
             const houseList = document.querySelectorAll('#loan-house-list > div');
             houseList.forEach(d => {
@@ -449,9 +447,9 @@ function exportToExcel() {
             });
             if (creditList.length > 0) addMergeRange(creditStart, creditList.length);
 
-            detailRows.push(["", "", ""]); // 空行
+            detailRows.push(["", "", ""]); 
 
-            // 5. 處理 統計 (統計這兩個字也可以合併)
+            // 5. 處理 統計
             const summaryStart = detailRows.length + 1;
             detailRows.push(["【結算匯總】", "類別", "數值"]);
             detailRows.push(["統計", "現有存款", Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''))]);
@@ -463,13 +461,23 @@ function exportToExcel() {
 
             const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
             
-            // 寫入合併指令
+            // --- 核心修改：遍歷所有單元格加入居中設定 ---
+            for (let cell in wsDetail) {
+                if (cell[0] === '!') continue; // 跳過非單元格對象
+                wsDetail[cell].s = {
+                    alignment: {
+                        vertical: "center", // 垂直置中
+                        horizontal: "center", // 水平置中
+                        wrapText: true // 自動換行
+                    }
+                };
+            }
+
             wsDetail['!merges'] = merges;
-            
-            wsDetail['!cols'] = [{wch: 20}, {wch: 25}, {wch: 15}, {wch: 5}, {wch: 15}, {wch: 15}];
+            wsDetail['!cols'] = [{wch: 22}, {wch: 25}, {wch: 15}, {wch: 5}, {wch: 15}, {wch: 15}];
             XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
 
-            // --- 第二個分頁：年度每月統計 (橫向增加) ---
+            // --- 第二個分頁：歷史紀錄 (維持原樣) ---
             const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
             const statsRows = [
                 ["年份", ...sortedHistory.map(r => new Date(r[0]).getFullYear())],
@@ -481,7 +489,6 @@ function exportToExcel() {
                 ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || 0)],
                 ["備註", ...sortedHistory.map(r => r[9] || "")]
             ];
-
             const wsHistory = XLSX.utils.aoa_to_sheet(statsRows);
             wsHistory['!cols'] = [{wch: 18}]; 
             XLSX.utils.book_append_sheet(wb, wsHistory, "每月歷史統計");
