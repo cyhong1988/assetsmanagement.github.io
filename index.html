@@ -22,25 +22,14 @@
         .usd-label { font-size: 10px; color: #60a5fa; margin-top: 2px; padding-right: 32px; text-align: right; width: 100%; display: block; font-family: monospace; }
         .stock-label { font-size: 9px; color: #94a3b8; margin-bottom: 4px; display: block; font-weight: bold; }
 
-        /* --- 呼吸燈效果 CSS --- */
         @keyframes pulse {
             0% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.4; transform: scale(0.9); }
             100% { opacity: 1; transform: scale(1); }
         }
         .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        /* 系統就緒：綠燈閃爍 */
-        .status-online { 
-            background-color: #10b981; 
-            box-shadow: 0 0 8px #10b981; 
-            animation: pulse 2s infinite ease-in-out; 
-        }
-        /* 同步中：藍燈閃爍 (速度稍快一點) */
-        .status-syncing { 
-            background-color: #3b82f6; 
-            box-shadow: 0 0 8px #3b82f6; 
-            animation: pulse 1s infinite ease-in-out; 
-        }
+        .status-online { background-color: #10b981; box-shadow: 0 0 8px #10b981; animation: pulse 2s infinite ease-in-out; }
+        .status-syncing { background-color: #3b82f6; box-shadow: 0 0 8px #3b82f6; animation: pulse 1s infinite ease-in-out; }
         .status-error { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
 
         #history-container table { width: 100%; border-collapse: collapse; }
@@ -51,11 +40,10 @@
         @media (max-width: 640px) {
             #history-table thead { display: none; }
             #history-table-body { display: flex; flex-direction: column; gap: 16px; padding: 10px 4px; }
-            #history-table-body tr { display: block; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+            #history-table-body tr { display: block; background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; padding: 16px; }
             #history-table-body td { display: flex; justify-content: space-between; align-items: center; padding: 6px 0 !important; border: none !important; font-size: 15px !important; }
             #history-table-body td:nth-child(1) { font-size: 18px !important; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important; margin-bottom: 8px; padding-bottom: 10px !important; color: #fff !important; }
-            #history-table-body td:nth-child(1)::before { content: "結算日期"; font-size: 10px; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; }
-            #history-table-body td:not(:first-child)::before { content: attr(data-label); font-size: 12px; color: #94a3b8; font-weight: normal; font-family: sans-serif; }
+            #history-table-body td:not(:first-child)::before { content: attr(data-label); font-size: 12px; color: #94a3b8; }
         }
         .hidden { display: none; }
     </style>
@@ -81,7 +69,8 @@
                 </div>
             </div>
             <div class="flex flex-col items-center">
-                <div class="text-center mb-6"> <span class="text-[10px] text-slate-500 uppercase block mb-0.5 tracking-wider">USD/TWD 參考匯率</span>
+                <div class="text-center mb-6"> 
+                    <span class="text-[10px] text-slate-500 uppercase block mb-0.5 tracking-wider">USD/TWD 參考匯率</span>
                     <span id="fx-rate-display" class="text-lg text-white font-mono font-bold">--.--</span>
                 </div>
                 <div class="flex flex-col items-center">
@@ -168,7 +157,7 @@
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 px-2 gap-4">
                     <h2 class="text-xl font-bold text-white tracking-widest">歷史紀錄</h2>
                     <div class="flex gap-2">
-                        <button onclick="exportToExcel()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest transition-all">匯出 EXCEL 報表</button>
+                        <button onclick="exportFullExcel()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest transition-all">匯出完整報表 (含明細)</button>
                         <button onclick="loadHistoryTable()" class="btn-action text-[10px]">重新整理</button>
                     </div>
                 </div>
@@ -300,12 +289,7 @@
         async function saveData() {
             const status = document.getElementById('sync-status');
             const indicator = document.getElementById('status-indicator');
-            
-            if(status) {
-                status.innerText = "同步連線中";
-                indicator.className = "status-dot status-syncing";
-            }
-
+            if(status) { status.innerText = "同步連線中"; indicator.className = "status-dot status-syncing"; }
             const data = {
                 you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                 ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
@@ -315,27 +299,15 @@
             };
             try {
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
-                if(status) { 
-                    status.innerText = "已成功儲存"; 
-                    indicator.className = "status-dot status-online";
-                    setTimeout(() => { status.innerText = "連線中"; }, 2000); 
-                }
-            } catch (e) { 
-                if(status) {
-                    status.innerText = "儲存失敗"; 
-                    indicator.className = "status-dot status-error";
-                }
-            }
+                if(status) { status.innerText = "已成功儲存"; indicator.className = "status-dot status-online"; setTimeout(() => { status.innerText = "連線中"; }, 2000); }
+            } catch (e) { if(status) { status.innerText = "儲存失敗"; indicator.className = "status-dot status-error"; } }
         }
 
         async function archiveHistory() {
             if (!confirm("確認結算本月數據？系統將會先自動儲存當前明細。")) return;
             const status = document.getElementById('sync-status');
             const indicator = document.getElementById('status-indicator');
-            if(status) {
-                status.innerText = "自動儲存中";
-                indicator.className = "status-dot status-syncing";
-            }
+            if(status) { status.innerText = "自動儲存中"; indicator.className = "status-dot status-syncing"; }
             try {
                 const currentData = {
                     you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
@@ -345,7 +317,6 @@
                     stocks: { you_tw: document.getElementById('you-stock-tw').value, you_us: document.getElementById('you-stock-us').value, ling_1: document.getElementById('ling-stock-1').value, ling_2: document.getElementById('ling-stock-2').value }
                 };
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(currentData) });
-                
                 const payload = {
                     action: 'ARCHIVE_HISTORY',
                     date: document.getElementById('archive-date').value || new Date().toISOString().slice(0, 10),
@@ -360,8 +331,7 @@
                     note: document.getElementById('archive-note').value
                 };
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(payload) });
-                alert("儲存並結算成功！");
-                location.reload();
+                alert("結算成功！"); location.reload();
             } catch (e) { alert("結算失敗"); }
         }
 
@@ -375,12 +345,10 @@
                 if (rows.length <= 1) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10">無紀錄</td></tr>'; return; }
                 tbody.innerHTML = '';
                 rows.slice(1).reverse().forEach(row => {
-                    let d = String(row[0]); 
-                    if(d.includes('T')) d = d.split('T')[0];
-                    const displayDate = d.slice(2); 
+                    let d = String(row[0]); if(d.includes('T')) d = d.split('T')[0];
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td data-label="日期" class="text-white font-bold">${displayDate}</td>
+                        <td data-label="日期" class="text-white font-bold">${d.slice(2)}</td>
                         <td data-label="總資產" class="text-white font-bold">${row[1]}</td>
                         <td data-label="存款" class="text-emerald-400">${row[2]}</td>
                         <td data-label="淨資產(扣所有)" class="text-blue-400">${row[3]}</td>
@@ -391,58 +359,81 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-function exportToExcel() {
-    if (fetchedHistory.length === 0) {
-        alert("請先點擊「重新整理」以同步歷史紀錄數據");
-        return;
-    }
+        // --- 新版完整匯出功能 ---
+        function exportFullExcel() {
+            if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄"); return; }
+            const wb = XLSX.utils.book_new();
+            const year = new Date().getFullYear();
+            
+            // --- Sheet 1: 每月結算統計 (橫向 1-12 月) ---
+            const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
+            const summaryRows = [
+                [`${year}年 財務趨勢統計`],
+                ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
+                ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
+                ["本月淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
+                ["本月現金", ...sortedHistory.map(r => Number(r[2]) || 0)],
+                ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
+                ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
+                ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || "")],
+                ["備註 (含個人明細)", ...sortedHistory.map(r => {
+                    const you = Number(r[7]) ? `猷: ${Math.floor(r[7]).toLocaleString()}\n` : "";
+                    const ling = Number(r[8]) ? `玲: ${Math.floor(r[8]).toLocaleString()}\n` : "";
+                    const note = r[9] ? `註: ${r[9]}` : "";
+                    return `${you}${ling}${note}`;
+                })]
+            ];
+            const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
+            wsSum['!cols'] = [{wch: 18}, ...sortedHistory.map(() => ({wch: 15}))];
+            wsSum['!rows'] = [{hpt: 30}, {hpt: 20}, ...Array(6).fill({hpt: 20}), {hpt: 80}];
+            XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
 
-    const wb = XLSX.utils.book_new();
-    const year = new Date().getFullYear();
-    
-    // 確保數據按日期由舊到新排列 (1月到12月)
-    const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
-    
-    // 建立表格內容，對齊圖片範本的行位
-    const summaryRows = [
-        [`${year}年 財務趨勢統計`], // 標題行
-        ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
-        ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
-        ["本月淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
-        ["本月現金", ...sortedHistory.map(r => Number(r[2]) || 0)],
-        ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
-        ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
-        ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || "")],
-        ["備註 (含個人明細)", ...sortedHistory.map(r => {
-            const you = Number(r[7]) ? `猷: ${Math.floor(r[7]).toLocaleString()}\n` : "";
-            const ling = Number(r[8]) ? `玲: ${Math.floor(r[8]).toLocaleString()}\n` : "";
-            const note = r[9] ? `註: ${r[9]}` : "";
-            return `${you}${ling}${note}`;
-        })]
-    ];
+            // --- Sheet 2: 資產明細現況 (比照範本圖一) ---
+            const detailRows = [
+                ["資產項目細節記錄", "", "", "", "貸款與負債狀況"],
+                ["【猷】銀行/美金", "金額", "", "【玲】銀行/投資", "金額", "", "【負債項目】", "剩餘金額"],
+            ];
+            
+            // 抓取頁面上的即時數據
+            const youBanks = Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => [d.querySelector('.item-name').value, d.querySelector('.item-amount').value]);
+            const lingBanks = Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => [d.querySelector('.item-name').value, d.querySelector('.item-amount').value]);
+            const houseLoans = Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => [d.querySelector('.item-name').value, d.querySelector('.item-amount').value]);
+            const creditLoans = Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => [d.querySelector('.item-name').value, d.querySelector('.item-amount').value]);
+            
+            const maxLen = Math.max(youBanks.length + 3, lingBanks.length + 3, houseLoans.length + creditLoans.length + 5);
+            
+            for(let i = 0; i < maxLen; i++) {
+                let row = [];
+                // 猷的部分
+                if(i < youBanks.length) row.push(youBanks[i][0], Number(youBanks[i][1]));
+                else if(i === youBanks.length) row.push("台股市值", Number(document.getElementById('you-stock-tw').value));
+                else if(i === youBanks.length + 1) row.push("美股市值(USD)", Number(document.getElementById('you-stock-us').value));
+                else row.push("", "");
 
-    const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
+                row.push(""); // 間隔
 
-    // 設定單元格寬度 (列寬)
-    const wscols = [
-        {wch: 18}, // 第一欄「項目」寬度
-        ...sortedHistory.map(() => ({wch: 15})) // 每個月份欄位的寬度
-    ];
-    wsSum['!cols'] = wscols;
+                // 玲的部分
+                if(i < lingBanks.length) row.push(lingBanks[i][0], Number(lingBanks[i][1]));
+                else if(i === lingBanks.length) row.push("台股市值", Number(document.getElementById('ling-stock-1').value));
+                else if(i === lingBanks.length + 1) row.push("雄獅配股", Number(document.getElementById('ling-stock-2').value));
+                else row.push("", "");
 
-    // 設定單元格高度 (特別是最後一行的備註需要自動換行高度)
-    wsSum['!rows'] = [
-        {hpt: 30}, // 標題行高
-        {hpt: 20}, // 月份行高
-        ...Array(6).fill({hpt: 20}), // 數據行高
-        {hpt: 80}  // 備註行高 (較高以顯示多行文字)
-    ];
+                row.push(""); // 間隔
 
-    XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
+                // 貸款的部分
+                const allLoans = [...houseLoans, ["---", ""], ...creditLoans];
+                if(i < allLoans.length) row.push(allLoans[i][0], Number(allLoans[i][1]));
+                else row.push("", "");
 
-    // 匯出檔案
-    XLSX.writeFile(wb, `猷玲財務報表_${new Date().getFullYear()}.xlsx`);
-}
+                detailRows.push(row);
+            }
+
+            const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
+            wsDetail['!cols'] = [{wch:15}, {wch:12}, {wch:5}, {wch:15}, {wch:12}, {wch:5}, {wch:15}, {wch:12}];
+            XLSX.utils.book_append_sheet(wb, wsDetail, "當前資產明細");
+
+            XLSX.writeFile(wb, `猷玲財務完整報表_${new Date().getMonth()+1}月.xlsx`);
+        }
 
         async function loadData() {
             try {
