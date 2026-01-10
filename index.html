@@ -391,29 +391,95 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-        function exportToExcel() {
-            if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
-            const wb = XLSX.utils.book_new();
-            const year = new Date().getFullYear();
-            const sortedHistory = fetchedHistory.slice(1).sort((a,b) => new Date(a[0]) - new Date(b[0]));
-            const summaryRows = [
-                [`${year}年 財務趨勢統計`],
-                ["項目 / 月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
-                ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
-                ["本月淨資產(扣所有)", ...sortedHistory.map(r => Number(r[3]) || 0)],
-                ["本月現金(存款)", ...sortedHistory.map(r => Number(r[2]) || 0)],
-                ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
-                ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
-                ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || "")],
-                ["猷 個人總計", ...sortedHistory.map(r => Number(r[7]) || 0)],
-                ["玲 個人總計", ...sortedHistory.map(r => Number(r[8]) || 0)],
-                ["備註", ...sortedHistory.map(r => r[9] || "")]
-            ];
-            const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
-            XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
-            XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0,10)}.xlsx`);
-        }
+function exportToExcel() {
+    if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
+    const wb = XLSX.utils.book_new();
 
+    // --- 第一個分頁：即時明細 (對應範本 A~L 欄) ---
+    const detailRows = [];
+    
+    // 初始化空矩陣 (預留 20 列 x 12 欄，確保對應範本位置)
+    for(let i=0; i<25; i++) detailRows.push(new Array(12).fill(""));
+
+    // A-B 欄：猷 的資產
+    detailRows[0][0] = "猷";
+    detailRows[1][0] = "項目"; detailRows[1][1] = "金額";
+    detailRows[2][0] = "台股市值"; detailRows[2][1] = Number(document.getElementById('you-stock-tw').value) || 0;
+    detailRows[3][0] = "美股市值(USD)"; detailRows[3][1] = Number(document.getElementById('you-stock-us').value) || 0;
+    const youBanks = document.querySelectorAll('#you-bank-list > div');
+    youBanks.forEach((d, i) => {
+        detailRows[4+i][0] = d.querySelector('.item-name').value;
+        detailRows[4+i][1] = Number(d.querySelector('.item-amount').value) || 0;
+    });
+
+    // C 欄：猷總計 (E欄位位置)
+    detailRows[1][2] = "猷總和";
+    detailRows[2][2] = Number(document.getElementById('you-total').innerText.replace(/,/g, ''));
+
+    // E-F 欄：玲 的資產
+    detailRows[0][4] = "玲";
+    detailRows[1][4] = "項目"; detailRows[1][5] = "金額";
+    const lingBanks = document.querySelectorAll('#ling-bank-list > div');
+    lingBanks.forEach((d, i) => {
+        detailRows[2+i][4] = d.querySelector('.item-name').value;
+        detailRows[2+i][5] = Number(d.querySelector('.item-amount').value) || 0;
+    });
+    let lingOffset = 2 + lingBanks.length;
+    detailRows[lingOffset][4] = "台股市值"; detailRows[lingOffset][5] = Number(document.getElementById('ling-stock-1').value) || 0;
+    detailRows[lingOffset+1][4] = "雄獅配股"; detailRows[lingOffset+1][5] = Number(document.getElementById('ling-stock-2').value) || 0;
+
+    // G 欄：玲總計 (G欄位位置)
+    detailRows[1][6] = "玲總和";
+    detailRows[2][6] = Number(document.getElementById('ling-total').innerText.replace(/,/g, ''));
+
+    // I 欄：兩人總和 (I欄位位置)
+    detailRows[1][8] = "兩人總和";
+    detailRows[2][8] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
+
+    // J-K 欄：貸款明細
+    detailRows[0][9] = "貸款";
+    detailRows[1][9] = "項目"; detailRows[1][10] = "金額";
+    const loans = [...document.querySelectorAll('#loan-house-list > div'), ...document.querySelectorAll('#loan-credit-list > div')];
+    loans.forEach((d, i) => {
+        detailRows[2+i][9] = d.querySelector('.item-name').value;
+        detailRows[2+i][10] = Number(d.querySelector('.item-amount').value) || 0;
+    });
+
+    // L-M 欄：右側統計區 (對應範本最後一區)
+    detailRows[1][11] = "貸款總和"; detailRows[1][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, '')) - Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+    detailRows[2][11] = "現有總資產"; detailRows[2][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''));
+    detailRows[3][11] = "淨資產(扣除所有)"; detailRows[3][12] = Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+    detailRows[4][11] = "現有存款(現金)"; detailRows[4][12] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
+    detailRows[5][11] = "淨資產(含房貸)"; detailRows[5][12] = Number(document.getElementById('res-excl').innerText.replace(/,/g, ''));
+    detailRows[6][11] = "美金匯率"; detailRows[6][12] = currentFxRate;
+
+    const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
+    XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
+
+    // --- 第二個分頁：每月趨勢統計 (橫向增長) ---
+    const sortedHistory = fetchedHistory.slice(1).sort((a,b) => new Date(a[0]) - new Date(b[0]));
+    const year = new Date().getFullYear();
+    
+    const trendRows = [
+        [`${year}年`],
+        ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
+        ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
+        ["本月淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
+        ["本月現金", ...sortedHistory.map(r => Number(r[2]) || 0)],
+        ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
+        ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
+        ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || "")],
+        ["猷 個人統計", ...sortedHistory.map(r => Number(r[7]) || 0)],
+        ["玲 個人統計", ...sortedHistory.map(r => Number(r[8]) || 0)],
+        ["備註", ...sortedHistory.map(r => r[9] || "")]
+    ];
+
+    const wsTrend = XLSX.utils.aoa_to_sheet(trendRows);
+    XLSX.utils.book_append_sheet(wb, wsTrend, "每月趨勢統計");
+
+    // 輸出檔案
+    XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
         async function loadData() {
             try {
                 const response = await fetch(GAS_URL);
