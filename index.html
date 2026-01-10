@@ -392,16 +392,16 @@
         }
 
 // --- 修正版完整匯出功能 ---
-        function exportToExcel() {
+function exportToExcel() {
             if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄"); return; }
             const wb = XLSX.utils.book_new();
             
             // --- 第一個分頁：資產與負債明細 ---
             const detailRows = [
-                ["【資產與負債即時明細】"],
-                ["項目類型", "名稱", "金額 (TWD/USD)"],
-                ["個人資產明細 (猷)", "台股市值", Number(document.getElementById('you-stock-tw').value) || 0],
-                ["個人資產明細 (猷)", "美股市值(USD)", Number(document.getElementById('you-stock-us').value) || 0]
+                ["【資產與負債即時明細】", "", "", "", "個人總計", ""],
+                ["項目類型", "名稱", "金額 (TWD/USD)", "", "對象", "總資產額"],
+                ["個人資產明細 (猷)", "台股市值", Number(document.getElementById('you-stock-tw').value) || 0, "", "猷總資產", Number(document.getElementById('you-total').innerText.replace(/,/g, ''))],
+                ["個人資產明細 (猷)", "美股市值(USD)", Number(document.getElementById('you-stock-us').value) || 0, "", "玲總資產", Number(document.getElementById('ling-total').innerText.replace(/,/g, ''))]
             ];
             
             // 逐項加入銀行存款
@@ -432,11 +432,11 @@
             detailRows.push(["統計", "美金匯率", currentFxRate]);
 
             const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
-            wsDetail['!cols'] = [{wch: 20}, {wch: 25}, {wch: 15}];
+            // 設定欄位寬度，包含 E 欄 (wch: 15) 與 F 欄 (wch: 15)
+            wsDetail['!cols'] = [{wch: 20}, {wch: 25}, {wch: 15}, {wch: 5}, {wch: 15}, {wch: 15}];
             XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
 
             // --- 第二個分頁：年度每月統計 (橫向增加) ---
-            // fetchedHistory 格式: [ [Header], [Date, TotalAsset, Bank, NetAll, NetExHouse, Diff, Rate, You, Ling, Note], ... ]
             const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
             
             const statsRows = [
@@ -451,14 +451,11 @@
             ];
 
             const wsHistory = XLSX.utils.aoa_to_sheet(statsRows);
-            // 設定第一欄寬度
             wsHistory['!cols'] = [{wch: 18}]; 
             XLSX.utils.book_append_sheet(wb, wsHistory, "每月歷史統計");
 
-            // 匯出檔案
             XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0, 10)}.xlsx`);
         }
-
         async function loadData() {
             try {
                 const response = await fetch(GAS_URL);
