@@ -396,49 +396,81 @@ function exportToExcel() {
             if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄"); return; }
             const wb = XLSX.utils.book_new();
             
+            // 用於記錄合併儲存格的陣列
+            const merges = [];
+            
             // --- 第一個分頁：資產與負債明細 ---
             const detailRows = [
                 ["【資產與負債即時明細】", "", "", "", "個人總計", ""],
-                ["項目類型", "名稱", "金額 (TWD/USD)", "", "對象", "總資產額"],
-                ["個人資產明細 (猷)", "台股市值", Number(document.getElementById('you-stock-tw').value) || 0, "", "猷總資產", Number(document.getElementById('you-total').innerText.replace(/,/g, ''))],
-                ["個人資產明細 (猷)", "美股市值(USD)", Number(document.getElementById('you-stock-us').value) || 0, "", "玲總資產", Number(document.getElementById('ling-total').innerText.replace(/,/g, ''))]
+                ["項目類型", "名稱", "金額 (TWD/USD)", "", "對象", "總資產額"]
             ];
-            
-            // 逐項加入銀行存款
+
+            // 輔助函式：記錄合併範圍 (A欄)
+            function addMergeRange(startRow, count, label) {
+                if (count > 1) {
+                    merges.push({ s: { r: startRow, c: 0 }, e: { r: startRow + count - 1, c: 0 } });
+                }
+            }
+
+            // 1. 處理 猷 的資產
+            const youStart = detailRows.length;
+            detailRows.push(["個人資產明細 (猷)", "台股市值", Number(document.getElementById('you-stock-tw').value) || 0, "", "猷總資產", Number(document.getElementById('you-total').innerText.replace(/,/g, ''))]);
+            detailRows.push(["個人資產明細 (猷)", "美股市值(USD)", Number(document.getElementById('you-stock-us').value) || 0, "", "玲總資產", Number(document.getElementById('ling-total').innerText.replace(/,/g, ''))]);
             document.querySelectorAll('#you-bank-list > div').forEach(d => {
                 detailRows.push(["個人資產明細 (猷)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
             });
+            addMergeRange(youStart, detailRows.length - youStart);
+
+            // 2. 處理 玲 的資產
+            const lingStart = detailRows.length;
             document.querySelectorAll('#ling-bank-list > div').forEach(d => {
                 detailRows.push(["個人資產明細 (玲)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
             });
             detailRows.push(["個人資產明細 (玲)", "台股市值", Number(document.getElementById('ling-stock-1').value) || 0]);
             detailRows.push(["個人資產明細 (玲)", "雄獅配股", Number(document.getElementById('ling-stock-2').value) || 0]);
+            addMergeRange(lingStart, detailRows.length - lingStart);
 
             detailRows.push(["", "", ""]); // 空行
+
+            // 3. 處理 房貸
+            const houseStart = detailRows.length + 1; // +1 是因為下面先推了一個標題 row
             detailRows.push(["負債明細", "房貸項目", ""]);
-            document.querySelectorAll('#loan-house-list > div').forEach(d => {
+            const houseList = document.querySelectorAll('#loan-house-list > div');
+            houseList.forEach(d => {
                 detailRows.push(["負債明細 (房貸)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
             });
-            document.querySelectorAll('#loan-credit-list > div').forEach(d => {
+            if (houseList.length > 0) addMergeRange(houseStart, houseList.length + 1);
+
+            // 4. 處理 信貸
+            const creditStart = detailRows.length;
+            const creditList = document.querySelectorAll('#loan-credit-list > div');
+            creditList.forEach(d => {
                 detailRows.push(["負債明細 (信貸)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
             });
+            if (creditList.length > 0) addMergeRange(creditStart, creditList.length);
 
             detailRows.push(["", "", ""]); // 空行
+
+            // 5. 處理 統計 (統計這兩個字也可以合併)
+            const summaryStart = detailRows.length + 1;
             detailRows.push(["【結算匯總】", "類別", "數值"]);
             detailRows.push(["統計", "現有存款", Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''))]);
             detailRows.push(["統計", "現有總資產", Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''))]);
             detailRows.push(["統計", "扣所有貸款淨資產", Number(document.getElementById('res-net').innerText.replace(/,/g, ''))]);
             detailRows.push(["統計", "扣房貸淨資產", Number(document.getElementById('res-excl').innerText.replace(/,/g, ''))]);
             detailRows.push(["統計", "美金匯率", currentFxRate]);
+            addMergeRange(summaryStart, 5);
 
             const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
-            // 設定欄位寬度，包含 E 欄 (wch: 15) 與 F 欄 (wch: 15)
+            
+            // 寫入合併指令
+            wsDetail['!merges'] = merges;
+            
             wsDetail['!cols'] = [{wch: 20}, {wch: 25}, {wch: 15}, {wch: 5}, {wch: 15}, {wch: 15}];
             XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
 
             // --- 第二個分頁：年度每月統計 (橫向增加) ---
             const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
-            
             const statsRows = [
                 ["年份", ...sortedHistory.map(r => new Date(r[0]).getFullYear())],
                 ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
