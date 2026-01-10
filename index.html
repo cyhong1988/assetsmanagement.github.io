@@ -391,27 +391,72 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
+// --- 修正版完整匯出功能 ---
         function exportToExcel() {
-            if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
+            if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄"); return; }
             const wb = XLSX.utils.book_new();
-            const year = new Date().getFullYear();
-            const sortedHistory = fetchedHistory.slice(1).sort((a,b) => new Date(a[0]) - new Date(b[0]));
-            const summaryRows = [
-                [`${year}年 財務趨勢統計`],
-                ["項目 / 月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
-                ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
-                ["本月淨資產(扣所有)", ...sortedHistory.map(r => Number(r[3]) || 0)],
-                ["本月現金(存款)", ...sortedHistory.map(r => Number(r[2]) || 0)],
+            
+            // --- 第一個分頁：資產與負債明細 ---
+            const detailRows = [
+                ["【資產與負債即時明細】"],
+                ["項目類型", "名稱", "金額 (TWD/USD)"],
+                ["個人資產明細 (猷)", "台股市值", Number(document.getElementById('you-stock-tw').value) || 0],
+                ["個人資產明細 (猷)", "美股市值(USD)", Number(document.getElementById('you-stock-us').value) || 0]
+            ];
+            
+            // 逐項加入銀行存款
+            document.querySelectorAll('#you-bank-list > div').forEach(d => {
+                detailRows.push(["個人資產明細 (猷)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
+            });
+            document.querySelectorAll('#ling-bank-list > div').forEach(d => {
+                detailRows.push(["個人資產明細 (玲)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
+            });
+            detailRows.push(["個人資產明細 (玲)", "台股市值", Number(document.getElementById('ling-stock-1').value) || 0]);
+            detailRows.push(["個人資產明細 (玲)", "雄獅配股", Number(document.getElementById('ling-stock-2').value) || 0]);
+
+            detailRows.push(["", "", ""]); // 空行
+            detailRows.push(["負債明細", "房貸項目", ""]);
+            document.querySelectorAll('#loan-house-list > div').forEach(d => {
+                detailRows.push(["負債明細 (房貸)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
+            });
+            document.querySelectorAll('#loan-credit-list > div').forEach(d => {
+                detailRows.push(["負債明細 (信貸)", d.querySelector('.item-name').value, Number(d.querySelector('.item-amount').value) || 0]);
+            });
+
+            detailRows.push(["", "", ""]); // 空行
+            detailRows.push(["【結算匯總】", "類別", "數值"]);
+            detailRows.push(["統計", "現有存款", Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''))]);
+            detailRows.push(["統計", "現有總資產", Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''))]);
+            detailRows.push(["統計", "扣所有貸款淨資產", Number(document.getElementById('res-net').innerText.replace(/,/g, ''))]);
+            detailRows.push(["統計", "扣房貸淨資產", Number(document.getElementById('res-excl').innerText.replace(/,/g, ''))]);
+            detailRows.push(["統計", "美金匯率", currentFxRate]);
+
+            const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
+            wsDetail['!cols'] = [{wch: 20}, {wch: 25}, {wch: 15}];
+            XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
+
+            // --- 第二個分頁：年度每月統計 (橫向增加) ---
+            // fetchedHistory 格式: [ [Header], [Date, TotalAsset, Bank, NetAll, NetExHouse, Diff, Rate, You, Ling, Note], ... ]
+            const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
+            
+            const statsRows = [
+                ["年份", ...sortedHistory.map(r => new Date(r[0]).getFullYear())],
+                ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
+                ["現有存款", ...sortedHistory.map(r => Number(r[2]) || 0)],
+                ["現有總資產", ...sortedHistory.map(r => Number(r[1]) || 0)],
+                ["扣所有貸款淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
                 ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
-                ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
-                ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || "")],
-                ["猷 個人總計", ...sortedHistory.map(r => Number(r[7]) || 0)],
-                ["玲 個人總計", ...sortedHistory.map(r => Number(r[8]) || 0)],
+                ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || 0)],
                 ["備註", ...sortedHistory.map(r => r[9] || "")]
             ];
-            const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
-            XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
-            XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0,10)}.xlsx`);
+
+            const wsHistory = XLSX.utils.aoa_to_sheet(statsRows);
+            // 設定第一欄寬度
+            wsHistory['!cols'] = [{wch: 18}]; 
+            XLSX.utils.book_append_sheet(wb, wsHistory, "每月歷史統計");
+
+            // 匯出檔案
+            XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0, 10)}.xlsx`);
         }
 
         async function loadData() {
