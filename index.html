@@ -461,23 +461,15 @@ function exportToExcel() {
 
             const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
             
-            // --- 核心修改：遍歷所有單元格加入居中設定 ---
-            for (let cell in wsDetail) {
-                if (cell[0] === '!') continue; // 跳過非單元格對象
-                wsDetail[cell].s = {
-                    alignment: {
-                        vertical: "center", // 垂直置中
-                        horizontal: "center", // 水平置中
-                        wrapText: true // 自動換行
-                    }
-                };
-            }
-
+            // --- 核心修改：移除導致檔案損毀的樣式設定 ---
+            // 直接指定合併資訊即可
             wsDetail['!merges'] = merges;
-            wsDetail['!cols'] = [{wch: 22}, {wch: 25}, {wch: 15}, {wch: 5}, {wch: 15}, {wch: 15}];
+            
+            // 透過調整欄位寬度讓文字顯得較為平衡
+            wsDetail['!cols'] = [{wch: 25}, {wch: 25}, {wch: 15}, {wch: 5}, {wch: 15}, {wch: 15}];
             XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
 
-            // --- 第二個分頁：歷史紀錄 (維持原樣) ---
+            // --- 第二個分頁：歷史統計 (保持穩定) ---
             const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
             const statsRows = [
                 ["年份", ...sortedHistory.map(r => new Date(r[0]).getFullYear())],
