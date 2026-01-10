@@ -398,8 +398,8 @@ function exportToExcel() {
     // --- 第一個分頁：即時明細 (對應範本 A~L 欄) ---
     const detailRows = [];
     
-    // 初始化空矩陣 (預留 20 列 x 12 欄，確保對應範本位置)
-    for(let i=0; i<25; i++) detailRows.push(new Array(12).fill(""));
+    // 初始化空矩陣 (預留 25 列 x 13 欄)
+    for(let i=0; i<25; i++) detailRows.push(new Array(13).fill(""));
 
     // A-B 欄：猷 的資產
     detailRows[0][0] = "猷";
@@ -412,7 +412,7 @@ function exportToExcel() {
         detailRows[4+i][1] = Number(d.querySelector('.item-amount').value) || 0;
     });
 
-    // C 欄：猷總計 (E欄位位置)
+    // C 欄：猷總計
     detailRows[1][2] = "猷總和";
     detailRows[2][2] = Number(document.getElementById('you-total').innerText.replace(/,/g, ''));
 
@@ -428,11 +428,11 @@ function exportToExcel() {
     detailRows[lingOffset][4] = "台股市值"; detailRows[lingOffset][5] = Number(document.getElementById('ling-stock-1').value) || 0;
     detailRows[lingOffset+1][4] = "雄獅配股"; detailRows[lingOffset+1][5] = Number(document.getElementById('ling-stock-2').value) || 0;
 
-    // G 欄：玲總計 (G欄位位置)
+    // G 欄：玲總計
     detailRows[1][6] = "玲總和";
     detailRows[2][6] = Number(document.getElementById('ling-total').innerText.replace(/,/g, ''));
 
-    // I 欄：兩人總和 (I欄位位置)
+    // I 欄：兩人總和 (現金存款)
     detailRows[1][8] = "兩人總和";
     detailRows[2][8] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
 
@@ -445,8 +445,9 @@ function exportToExcel() {
         detailRows[2+i][10] = Number(d.querySelector('.item-amount').value) || 0;
     });
 
-    // L-M 欄：右側統計區 (對應範本最後一區)
-    detailRows[1][11] = "貸款總和"; detailRows[1][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, '')) - Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+    // L-M 欄：右側統計區
+    const loanSum = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, '')) - Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+    detailRows[1][11] = "貸款總和"; detailRows[1][12] = loanSum;
     detailRows[2][11] = "現有總資產"; detailRows[2][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''));
     detailRows[3][11] = "淨資產(扣除所有)"; detailRows[3][12] = Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
     detailRows[4][11] = "現有存款(現金)"; detailRows[4][12] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
@@ -457,11 +458,14 @@ function exportToExcel() {
     XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
 
     // --- 第二個分頁：每月趨勢統計 (橫向增長) ---
+    // 確保 fetchedHistory 排序正確
     const sortedHistory = fetchedHistory.slice(1).sort((a,b) => new Date(a[0]) - new Date(b[0]));
-    const year = new Date().getFullYear();
+    const yearLabel = sortedHistory.length > 0 ? new Date(sortedHistory[0][0]).getFullYear() + "年" : "年份";
     
+    // 定義歷史統計資料的欄位對應 (請根據 Google Sheet 的順序確認索引值)
+    // 假設索引：0:日期, 1:總資產, 2:存款, 3:扣所有貸款淨資產, 4:扣房貸淨資產, 5:增減, 6:匯率, 7:猷統計, 8:玲統計, 9:備註
     const trendRows = [
-        [`${year}年`],
+        [yearLabel],
         ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
         ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
         ["本月淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
