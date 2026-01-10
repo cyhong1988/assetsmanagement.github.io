@@ -234,7 +234,7 @@
             calculate();
         }
 
-        function calculate() {
+                function calculate() {
             function getSums(selector) {
                 let currentSum = 0;
                 document.querySelectorAll(selector).forEach(parent => {
@@ -252,10 +252,13 @@
                             hint.classList.remove('hidden');
                         } else { hint.classList.add('hidden'); }
                     } else { hint.classList.add('hidden'); }
+                    
+                    // 這裡維持原樣：計算總和時，「玲媽未投」不計入加法
                     if (!name.includes("玲媽未投")) { currentSum += finalTwd; }
                 });
                 return currentSum;
             }
+
             const youBank = getSums('#you-bank-list > div');
             const youStockTW = parseFloat(document.getElementById('you-stock-tw').value) || 0;
             const youStockUS = parseFloat(document.getElementById('you-stock-us').value) || 0;
@@ -263,28 +266,49 @@
             document.getElementById('you-stock-us-twd').innerText = Math.floor(youStockUS_TWD).toLocaleString();
             const youTotal = youBank + youStockTW + youStockUS_TWD;
             document.getElementById('you-total').innerText = Math.floor(youTotal).toLocaleString();
-            const lingBank = getSums('#ling-bank-list > div');
+
+            // --- 處理 玲 的部分 ---
+            const lingBank = getSums('#ling-bank-list > div'); // 這裡面的金額已經「不含」玲媽未投
+            
+            // 【新增】獲取「玲媽未投」的具體金額
+            let lingMaDeduct = 0;
+            document.querySelectorAll('#ling-bank-list > div').forEach(parent => {
+                const name = parent.querySelector('.item-name').value;
+                if (name.includes("玲媽未投")) {
+                    lingMaDeduct = parseFloat(parent.querySelector('.item-amount').value) || 0;
+                }
+            });
+
             const lingStock1 = parseFloat(document.getElementById('ling-stock-1').value) || 0;
             const lingStock2 = parseFloat(document.getElementById('ling-stock-2').value) || 0;
-            const lingTotal = lingBank + lingStock1 + lingStock2;
+
+            // 修改 lingTotal 計算邏輯：(現有存款 + 股票) - 玲媽未投
+            const lingTotal = (lingBank + lingStock1 + lingStock2) - lingMaDeduct;
             document.getElementById('ling-total').innerText = Math.floor(lingTotal).toLocaleString();
+            // ---------------------
+
             let house = 0; document.querySelectorAll('#loan-house-list .item-amount').forEach(el => house += parseFloat(el.value) || 0);
             document.getElementById('loan-house-sum').innerText = Math.floor(house).toLocaleString();
             let credit = 0; document.querySelectorAll('#loan-credit-list .item-amount').forEach(el => credit += parseFloat(el.value) || 0);
             document.getElementById('loan-credit-sum').innerText = Math.floor(credit).toLocaleString();
+            
             const totalBank = youBank + lingBank;
             const totalAsset = youTotal + lingTotal;
             document.getElementById('global-bank-sum').innerText = Math.floor(totalBank).toLocaleString();
             document.getElementById('global-asset-sum').innerText = Math.floor(totalAsset).toLocaleString();
+            
             const netAsset = totalAsset - house - credit;
             const netAssetExclHouse = totalAsset - house;
             const diff = netAssetExclHouse - lastMonthNetExclHouse;
+            
             document.getElementById('res-net').innerText = Math.floor(netAsset).toLocaleString();
             document.getElementById('res-excl').innerText = Math.floor(netAssetExclHouse).toLocaleString();
+            
             const diffEl = document.getElementById('res-diff');
             diffEl.innerText = Math.floor(diff).toLocaleString();
             diffEl.className = "font-mono text-sm font-bold " + (diff >= 0 ? "text-emerald-400" : "text-red-400");
         }
+
 
         async function saveData() {
             const status = document.getElementById('sync-status');
@@ -344,11 +368,13 @@
                 if (rows.length <= 1) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10">無紀錄</td></tr>'; return; }
                 tbody.innerHTML = '';
                 rows.slice(1).reverse().forEach(row => {
-                    let d = String(row[0]); 
+                    // --- 修改開始 ---
+                    let d = String(row[0]).replace(/-/g, '/'); // 這裡解決少一天的問題
                     if(d.includes('T')) d = d.split('T')[0];
+                    // --- 修改結束 ---
+                    
                     const displayDate = d.slice(2); 
                     const tr = document.createElement('tr');
-                    // row[9] 是備註欄位 (Index 0-9 對應 A-J 欄)
                     tr.innerHTML = `
                         <td data-label="日期" class="text-white font-bold">${displayDate}</td>
                         <td data-label="總資產" class="text-white font-bold">${row[1]}</td>
@@ -361,6 +387,7 @@
                 });
             } catch (e) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
+
 
         function exportToExcel() {
             if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
