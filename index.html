@@ -391,28 +391,58 @@
             } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-        function exportToExcel() {
-            if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
-            const wb = XLSX.utils.book_new();
-            const year = new Date().getFullYear();
-            const sortedHistory = fetchedHistory.slice(1).sort((a,b) => new Date(a[0]) - new Date(b[0]));
-            const summaryRows = [
-                [`${year}年 財務趨勢統計`],
-                ["項目 / 月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
-                ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
-                ["本月淨資產(扣所有)", ...sortedHistory.map(r => Number(r[3]) || 0)],
-                ["本月現金(存款)", ...sortedHistory.map(r => Number(r[2]) || 0)],
-                ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
-                ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
-                ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || "")],
-                ["猷 個人總計", ...sortedHistory.map(r => Number(r[7]) || 0)],
-                ["玲 個人總計", ...sortedHistory.map(r => Number(r[8]) || 0)],
-                ["備註", ...sortedHistory.map(r => r[9] || "")]
-            ];
-            const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
-            XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
-            XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0,10)}.xlsx`);
-        }
+function exportToExcel() {
+    if (fetchedHistory.length === 0) {
+        alert("請先點擊「重新整理」以同步歷史紀錄數據");
+        return;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const year = new Date().getFullYear();
+    
+    // 確保數據按日期由舊到新排列 (1月到12月)
+    const sortedHistory = fetchedHistory.slice(1).sort((a, b) => new Date(a[0]) - new Date(b[0]));
+    
+    // 建立表格內容，對齊圖片範本的行位
+    const summaryRows = [
+        [`${year}年 財務趨勢統計`], // 標題行
+        ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
+        ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
+        ["本月淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
+        ["本月現金", ...sortedHistory.map(r => Number(r[2]) || 0)],
+        ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
+        ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
+        ["美金匯率", ...sortedHistory.map(r => Number(r[6]) || "")],
+        ["備註 (含個人明細)", ...sortedHistory.map(r => {
+            const you = Number(r[7]) ? `猷: ${Math.floor(r[7]).toLocaleString()}\n` : "";
+            const ling = Number(r[8]) ? `玲: ${Math.floor(r[8]).toLocaleString()}\n` : "";
+            const note = r[9] ? `註: ${r[9]}` : "";
+            return `${you}${ling}${note}`;
+        })]
+    ];
+
+    const wsSum = XLSX.utils.aoa_to_sheet(summaryRows);
+
+    // 設定單元格寬度 (列寬)
+    const wscols = [
+        {wch: 18}, // 第一欄「項目」寬度
+        ...sortedHistory.map(() => ({wch: 15})) // 每個月份欄位的寬度
+    ];
+    wsSum['!cols'] = wscols;
+
+    // 設定單元格高度 (特別是最後一行的備註需要自動換行高度)
+    wsSum['!rows'] = [
+        {hpt: 30}, // 標題行高
+        {hpt: 20}, // 月份行高
+        ...Array(6).fill({hpt: 20}), // 數據行高
+        {hpt: 80}  // 備註行高 (較高以顯示多行文字)
+    ];
+
+    XLSX.utils.book_append_sheet(wb, wsSum, "每月結算總表");
+
+    // 匯出檔案
+    XLSX.writeFile(wb, `猷玲財務報表_${new Date().getFullYear()}.xlsx`);
+}
 
         async function loadData() {
             try {
