@@ -393,12 +393,12 @@
             const loans = [...document.querySelectorAll('#loan-house-list > div'), ...document.querySelectorAll('#loan-credit-list > div')];
             loans.forEach((d, i) => { detailRows[2+i][10] = d.querySelector('.item-name').value; detailRows[2+i][11] = Number(d.querySelector('.item-amount').value) || 0; });
 
-            detailRows[1][12] = "貸款總和"; detailRows[1][13] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, '')) - Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
-            detailRows[2][12] = "現有總資產"; detailRows[2][13] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''));
-            detailRows[3][12] = "淨資產(扣除所有)"; detailRows[3][13] = Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
-            detailRows[4][12] = "現有存款(現金)"; detailRows[4][13] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
-            detailRows[5][12] = "淨資產(含房貸)"; detailRows[5][13] = Number(document.getElementById('res-excl').innerText.replace(/,/g, ''));
-            detailRows[6][12] = "美金匯率"; detailRows[6][13] = currentFxRate;
+            detailRows[1][13] = "貸款總和"; detailRows[1][14] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, '')) - Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+            detailRows[2][13] = "現有總資產"; detailRows[2][14] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''));
+            detailRows[3][13] = "淨資產(扣除所有)"; detailRows[3][14] = Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+            detailRows[4][13] = "現有存款(現金)"; detailRows[4][14] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
+            detailRows[5][13] = "淨資產(含房貸)"; detailRows[5][14] = Number(document.getElementById('res-excl').innerText.replace(/,/g, ''));
+            detailRows[6][13] = "美金匯率"; detailRows[6][14] = currentFxRate;
 
             const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
             XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
