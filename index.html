@@ -22,25 +22,14 @@
         .usd-label { font-size: 10px; color: #60a5fa; margin-top: 2px; padding-right: 32px; text-align: right; width: 100%; display: block; font-family: monospace; }
         .stock-label { font-size: 9px; color: #94a3b8; margin-bottom: 4px; display: block; font-weight: bold; }
 
-        /* --- 呼吸燈效果 CSS --- */
         @keyframes pulse {
             0% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.4; transform: scale(0.9); }
             100% { opacity: 1; transform: scale(1); }
         }
         .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; margin-right: 8px; }
-        /* 系統就緒：綠燈閃爍 */
-        .status-online { 
-            background-color: #10b981; 
-            box-shadow: 0 0 8px #10b981; 
-            animation: pulse 2s infinite ease-in-out; 
-        }
-        /* 同步中：藍燈閃爍 (速度稍快一點) */
-        .status-syncing { 
-            background-color: #3b82f6; 
-            box-shadow: 0 0 8px #3b82f6; 
-            animation: pulse 1s infinite ease-in-out; 
-        }
+        .status-online { background-color: #10b981; box-shadow: 0 0 8px #10b981; animation: pulse 2s infinite ease-in-out; }
+        .status-syncing { background-color: #3b82f6; box-shadow: 0 0 8px #3b82f6; animation: pulse 1s infinite ease-in-out; }
         .status-error { background-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
 
         #history-container table { width: 100%; border-collapse: collapse; }
@@ -172,7 +161,7 @@
                         <button onclick="loadHistoryTable()" class="btn-action text-[10px]">重新整理</button>
                     </div>
                 </div>
-                <div class="overflow-hidden">
+                <div class="overflow-x-auto">
                     <table id="history-table">
                         <thead>
                             <tr>
@@ -181,6 +170,7 @@
                                 <th>存款</th>
                                 <th>淨資產(扣所有)</th>
                                 <th>淨資產(扣房貸)</th>
+                                <th>匯率</th>
                                 <th>增減</th>
                             </tr>
                         </thead>
@@ -199,10 +189,7 @@
 
         function initSortable(id) {
             new Sortable(document.getElementById(id), {
-                handle: '.drag-handle',
-                animation: 150,
-                ghostClass: 'sortable-ghost',
-                onEnd: () => calculate()
+                handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost', onEnd: () => calculate()
             });
         }
 
@@ -300,12 +287,7 @@
         async function saveData() {
             const status = document.getElementById('sync-status');
             const indicator = document.getElementById('status-indicator');
-            
-            if(status) {
-                status.innerText = "同步連線中";
-                indicator.className = "status-dot status-syncing";
-            }
-
+            if(status) { status.innerText = "同步連線中"; indicator.className = "status-dot status-syncing"; }
             const data = {
                 you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                 ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
@@ -315,28 +297,14 @@
             };
             try {
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
-                if(status) { 
-                    status.innerText = "已成功儲存"; 
-                    indicator.className = "status-dot status-online";
-                    setTimeout(() => { status.innerText = "連線中"; }, 2000); 
-                }
-            } catch (e) { 
-                if(status) {
-                    status.innerText = "儲存失敗"; 
-                    indicator.className = "status-dot status-error";
-                }
-            }
+                if(status) { status.innerText = "已成功儲存"; indicator.className = "status-dot status-online"; setTimeout(() => { status.innerText = "連線中"; }, 2000); }
+            } catch (e) { if(status) { status.innerText = "儲存失敗"; indicator.className = "status-dot status-error"; } }
         }
 
         async function archiveHistory() {
             if (!confirm("確認結算本月數據？系統將會先自動儲存當前明細。")) return;
-            const status = document.getElementById('sync-status');
-            const indicator = document.getElementById('status-indicator');
-            if(status) {
-                status.innerText = "自動儲存中";
-                indicator.className = "status-dot status-syncing";
-            }
             try {
+                // 自動存檔
                 const currentData = {
                     you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                     ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
@@ -354,7 +322,7 @@
                     netAsset: document.getElementById('res-net').innerText.replace(/,/g, ''),
                     netAssetExclHouse: document.getElementById('res-excl').innerText.replace(/,/g, ''),
                     diff: document.getElementById('res-diff').innerText.replace(/,/g, ''),
-                    fxRate: currentFxRate.toFixed(3),
+                    fxRate: currentFxRate.toFixed(3), // 確保匯率被存入
                     youTotal: document.getElementById('you-total').innerText.replace(/,/g, ''),
                     lingTotal: document.getElementById('ling-total').innerText.replace(/,/g, ''),
                     note: document.getElementById('archive-note').value
@@ -367,118 +335,95 @@
 
         async function loadHistoryTable() {
             const tbody = document.getElementById('history-table-body');
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10">載入中...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10">載入中...</td></tr>';
             try {
                 const response = await fetch(`${GAS_URL}?action=readHistory`);
                 const rows = await response.json();
                 fetchedHistory = rows; 
-                if (rows.length <= 1) { tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10">無紀錄</td></tr>'; return; }
+                if (rows.length <= 1) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10">無紀錄</td></tr>'; return; }
                 tbody.innerHTML = '';
                 rows.slice(1).reverse().forEach(row => {
                     let d = String(row[0]); 
                     if(d.includes('T')) d = d.split('T')[0];
                     const displayDate = d.slice(2); 
                     const tr = document.createElement('tr');
+                    // row[6] 是美金匯率欄位
                     tr.innerHTML = `
                         <td data-label="日期" class="text-white font-bold">${displayDate}</td>
                         <td data-label="總資產" class="text-white font-bold">${row[1]}</td>
                         <td data-label="存款" class="text-emerald-400">${row[2]}</td>
                         <td data-label="淨資產(扣所有)" class="text-blue-400">${row[3]}</td>
                         <td data-label="淨資產(扣房貸)" class="text-emerald-500 font-bold">${row[4]}</td>
+                        <td data-label="匯率" class="text-blue-300">${row[6] || '--'}</td>
                         <td data-label="增減" class="${String(row[5]).includes('-') ? 'text-red-400' : 'text-emerald-400'} font-bold">${row[5]}</td>`;
                     tbody.appendChild(tr);
                 });
-            } catch (e) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
+            } catch (e) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
 
-function exportToExcel() {
-    if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
-    const wb = XLSX.utils.book_new();
+        function exportToExcel() {
+            if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
+            const wb = XLSX.utils.book_new();
 
-    // --- 第一個分頁：即時明細 (對應範本 A~L 欄) ---
-    const detailRows = [];
-    for(let i=0; i<25; i++) detailRows.push(new Array(13).fill("")); // 擴展到 13 欄以容納 M 欄
+            const detailRows = [];
+            for(let i=0; i<25; i++) detailRows.push(new Array(13).fill(""));
 
-    // A-B 欄：猷 的資產
-    detailRows[0][0] = "猷";
-    detailRows[1][0] = "項目"; detailRows[1][1] = "金額";
-    detailRows[2][0] = "台股市值"; detailRows[2][1] = Number(document.getElementById('you-stock-tw').value) || 0;
-    detailRows[3][0] = "美股市值(USD)"; detailRows[3][1] = Number(document.getElementById('you-stock-us').value) || 0;
-    const youBanks = document.querySelectorAll('#you-bank-list > div');
-    youBanks.forEach((d, i) => {
-        detailRows[4+i][0] = d.querySelector('.item-name').value;
-        detailRows[4+i][1] = Number(d.querySelector('.item-amount').value) || 0;
-    });
+            // 第一分頁資料寫入 (猷/玲/貸款/統計)
+            detailRows[0][0] = "猷";
+            detailRows[1][0] = "項目"; detailRows[1][1] = "金額";
+            detailRows[2][0] = "台股市值"; detailRows[2][1] = Number(document.getElementById('you-stock-tw').value) || 0;
+            detailRows[3][0] = "美股市值(USD)"; detailRows[3][1] = Number(document.getElementById('you-stock-us').value) || 0;
+            const youBanks = document.querySelectorAll('#you-bank-list > div');
+            youBanks.forEach((d, i) => { detailRows[4+i][0] = d.querySelector('.item-name').value; detailRows[4+i][1] = Number(d.querySelector('.item-amount').value) || 0; });
+            detailRows[1][2] = "猷總和"; detailRows[2][2] = Number(document.getElementById('you-total').innerText.replace(/,/g, ''));
+            
+            detailRows[0][4] = "玲";
+            detailRows[1][4] = "項目"; detailRows[1][5] = "金額";
+            const lingBanks = document.querySelectorAll('#ling-bank-list > div');
+            lingBanks.forEach((d, i) => { detailRows[2+i][4] = d.querySelector('.item-name').value; detailRows[2+i][5] = Number(d.querySelector('.item-amount').value) || 0; });
+            let lingOffset = 2 + lingBanks.length;
+            detailRows[lingOffset][4] = "台股市值"; detailRows[lingOffset][5] = Number(document.getElementById('ling-stock-1').value) || 0;
+            detailRows[lingOffset+1][4] = "雄獅配股"; detailRows[lingOffset+1][5] = Number(document.getElementById('ling-stock-2').value) || 0;
+            detailRows[1][6] = "玲總和"; detailRows[2][6] = Number(document.getElementById('ling-total').innerText.replace(/,/g, ''));
+            
+            detailRows[1][8] = "兩人總和"; detailRows[2][8] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
+            
+            detailRows[0][9] = "貸款";
+            detailRows[1][9] = "項目"; detailRows[1][10] = "金額";
+            const loans = [...document.querySelectorAll('#loan-house-list > div'), ...document.querySelectorAll('#loan-credit-list > div')];
+            loans.forEach((d, i) => { detailRows[2+i][9] = d.querySelector('.item-name').value; detailRows[2+i][10] = Number(d.querySelector('.item-amount').value) || 0; });
 
-    // C 欄：猷總計 (抓取當前頁面 C3 概念的值)
-    detailRows[1][2] = "猷總和";
-    detailRows[2][2] = Number(document.getElementById('you-total').innerText.replace(/,/g, ''));
+            detailRows[1][11] = "貸款總和"; detailRows[1][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, '')) - Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+            detailRows[2][11] = "現有總資產"; detailRows[2][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''));
+            detailRows[3][11] = "淨資產(扣除所有)"; detailRows[3][12] = Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
+            detailRows[4][11] = "現有存款(現金)"; detailRows[4][12] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
+            detailRows[5][11] = "淨資產(含房貸)"; detailRows[5][12] = Number(document.getElementById('res-excl').innerText.replace(/,/g, ''));
+            detailRows[6][11] = "美金匯率"; detailRows[6][12] = currentFxRate;
 
-    // E-F 欄：玲 的資產
-    detailRows[0][4] = "玲";
-    detailRows[1][4] = "項目"; detailRows[1][5] = "金額";
-    const lingBanks = document.querySelectorAll('#ling-bank-list > div');
-    lingBanks.forEach((d, i) => {
-        detailRows[2+i][4] = d.querySelector('.item-name').value;
-        detailRows[2+i][5] = Number(d.querySelector('.item-amount').value) || 0;
-    });
-    let lingOffset = 2 + lingBanks.length;
-    detailRows[lingOffset][4] = "台股市值"; detailRows[lingOffset][5] = Number(document.getElementById('ling-stock-1').value) || 0;
-    detailRows[lingOffset+1][4] = "雄獅配股"; detailRows[lingOffset+1][5] = Number(document.getElementById('ling-stock-2').value) || 0;
+            const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
+            XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
 
-    // G 欄：玲總計 (抓取當前頁面 G3 概念的值)
-    detailRows[1][6] = "玲總和";
-    detailRows[2][6] = Number(document.getElementById('ling-total').innerText.replace(/,/g, ''));
+            // 第二分頁：每月趨勢統計 (橫向)
+            const sortedHistory = fetchedHistory.slice(1).sort((a,b) => new Date(a[0]) - new Date(b[0]));
+            const currentYear = new Date().getFullYear();
+            const trendRows = [
+                [`${currentYear}年`],
+                ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
+                ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
+                ["本月淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
+                ["本月現金", ...sortedHistory.map(r => Number(r[2]) || 0)],
+                ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
+                ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
+                ["美金匯率", ...sortedHistory.map(r => r[6] ? Number(r[6]) : "")],
+                ["猷 個人統計", ...sortedHistory.map(r => Number(r[7]) || 0)],
+                ["玲 個人統計", ...sortedHistory.map(r => Number(r[8]) || 0)],
+                ["備註", ...sortedHistory.map(r => r[9] || "")]
+            ];
+            const wsTrend = XLSX.utils.aoa_to_sheet(trendRows);
+            XLSX.utils.book_append_sheet(wb, wsTrend, "每月趨勢統計");
+            XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
 
-    // I 欄：兩人總和
-    detailRows[1][8] = "兩人總和";
-    detailRows[2][8] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
-
-    // J-K 欄：貸款明細
-    detailRows[0][9] = "貸款";
-    detailRows[1][9] = "項目"; detailRows[1][10] = "金額";
-    const loans = [...document.querySelectorAll('#loan-house-list > div'), ...document.querySelectorAll('#loan-credit-list > div')];
-    loans.forEach((d, i) => {
-        detailRows[2+i][9] = d.querySelector('.item-name').value;
-        detailRows[2+i][10] = Number(d.querySelector('.item-amount').value) || 0;
-    });
-
-    // L-M 欄：右側統計區
-    detailRows[1][11] = "貸款總和"; detailRows[1][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, '')) - Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
-    detailRows[2][11] = "現有總資產"; detailRows[2][12] = Number(document.getElementById('global-asset-sum').innerText.replace(/,/g, ''));
-    detailRows[3][11] = "淨資產(扣除所有)"; detailRows[3][12] = Number(document.getElementById('res-net').innerText.replace(/,/g, ''));
-    detailRows[4][11] = "現有存款(現金)"; detailRows[4][12] = Number(document.getElementById('global-bank-sum').innerText.replace(/,/g, ''));
-    detailRows[5][11] = "淨資產(含房貸)"; detailRows[5][12] = Number(document.getElementById('res-excl').innerText.replace(/,/g, ''));
-    detailRows[6][11] = "美金匯率"; detailRows[6][12] = currentFxRate;
-
-    const wsDetail = XLSX.utils.aoa_to_sheet(detailRows);
-    XLSX.utils.book_append_sheet(wb, wsDetail, "資產負債明細");
-
-    // --- 第二個分頁：每月趨勢統計 (橫向增長) ---
-    // 排序歷史紀錄，確保按日期由舊到新
-    const sortedHistory = fetchedHistory.slice(1).sort((a,b) => new Date(a[0]) - new Date(b[0]));
-    const currentYear = new Date().getFullYear();
-    
-    const trendRows = [
-        [`${currentYear}年`],
-        ["月份", ...sortedHistory.map(r => (new Date(r[0]).getMonth() + 1) + "月")],
-        ["本月實際餘額", ...sortedHistory.map(r => Number(r[1]) || 0)],
-        ["本月淨資產", ...sortedHistory.map(r => Number(r[3]) || 0)],
-        ["本月現金", ...sortedHistory.map(r => Number(r[2]) || 0)],
-        ["扣房貸淨資產", ...sortedHistory.map(r => Number(r[4]) || 0)],
-        ["淨資產增減", ...sortedHistory.map(r => Number(r[5]) || 0)],
-        ["美金匯率", ...sortedHistory.map(r => r[6] ? Number(r[6]) : "")], // 從歷史紀錄抓取匯率
-        ["猷 個人統計", ...sortedHistory.map(r => Number(r[7]) || 0)],     // 從歷史紀錄抓取當月猷總計
-        ["玲 個人統計", ...sortedHistory.map(r => Number(r[8]) || 0)],     // 從歷史紀錄抓取當月玲總計
-        ["備註", ...sortedHistory.map(r => r[9] || "")]
-    ];
-
-    const wsTrend = XLSX.utils.aoa_to_sheet(trendRows);
-    XLSX.utils.book_append_sheet(wb, wsTrend, "每月趨勢統計");
-
-    // 輸出檔案
-    XLSX.writeFile(wb, `猷玲財務報表_${new Date().toISOString().slice(0,10)}.xlsx`);
-}
         async function loadData() {
             try {
                 const response = await fetch(GAS_URL);
@@ -497,8 +442,7 @@ function exportToExcel() {
                     document.getElementById('ling-stock-2').value = data.stocks.ling_2 || '';
                 }
             } catch (e) { console.error(e); }
-            initSortable('you-bank-list'); initSortable('ling-bank-list');
-            initSortable('loan-house-list'); initSortable('loan-credit-list');
+            initSortable('you-bank-list'); initSortable('ling-bank-list'); initSortable('loan-house-list'); initSortable('loan-credit-list');
             document.getElementById('archive-date').value = new Date().toISOString().slice(0, 10);
             calculate();
         }
