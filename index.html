@@ -77,6 +77,7 @@
                 </div>
                 <div class="flex flex-col items-center">
                     <button onclick="saveData()" class="btn-action tracking-widest uppercase px-10">儲存並更新</button>
+                    <p class="text-[9px] text-slate-400 mt-1 font-mono">最後儲存：<span id="last-update-time">尚未儲存</span></p>
                     <div class="flex items-center mt-2">
                         <span id="status-indicator" class="status-dot status-online"></span>
                         <span id="sync-status" class="text-slate-500 text-[10px] tracking-widest uppercase font-semibold">連線中</span>
@@ -189,6 +190,12 @@
         let lastMonthNetExclHouse = 0;
         let fetchedHistory = [];
 
+        // 格式化時間函數
+        function getFormattedTime() {
+            const now = new Date();
+            return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        }
+
         function initSortable(id) {
             new Sortable(document.getElementById(id), {
                 handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost', onEnd: () => calculate()
@@ -234,7 +241,7 @@
             calculate();
         }
 
-                function calculate() {
+        function calculate() {
             function getSums(selector) {
                 let currentSum = 0;
                 document.querySelectorAll(selector).forEach(parent => {
@@ -252,8 +259,6 @@
                             hint.classList.remove('hidden');
                         } else { hint.classList.add('hidden'); }
                     } else { hint.classList.add('hidden'); }
-                    
-                    // 這裡維持原樣：計算總和時，「玲媽未投」不計入加法
                     if (!name.includes("玲媽未投")) { currentSum += finalTwd; }
                 });
                 return currentSum;
@@ -267,25 +272,17 @@
             const youTotal = youBank + youStockTW + youStockUS_TWD;
             document.getElementById('you-total').innerText = Math.floor(youTotal).toLocaleString();
 
-            // --- 處理 玲 的部分 ---
-            const lingBank = getSums('#ling-bank-list > div'); // 這裡面的金額已經「不含」玲媽未投
-            
-            // 【新增】獲取「玲媽未投」的具體金額
+            const lingBank = getSums('#ling-bank-list > div'); 
             let lingMaDeduct = 0;
             document.querySelectorAll('#ling-bank-list > div').forEach(parent => {
                 const name = parent.querySelector('.item-name').value;
-                if (name.includes("玲媽未投")) {
-                    lingMaDeduct = parseFloat(parent.querySelector('.item-amount').value) || 0;
-                }
+                if (name.includes("玲媽未投")) { lingMaDeduct = parseFloat(parent.querySelector('.item-amount').value) || 0; }
             });
 
             const lingStock1 = parseFloat(document.getElementById('ling-stock-1').value) || 0;
             const lingStock2 = parseFloat(document.getElementById('ling-stock-2').value) || 0;
-
-            // 修改 lingTotal 計算邏輯：(現有存款 + 股票) - 玲媽未投
             const lingTotal = (lingBank + lingStock1 + lingStock2) - lingMaDeduct;
             document.getElementById('ling-total').innerText = Math.floor(lingTotal).toLocaleString();
-            // ---------------------
 
             let house = 0; document.querySelectorAll('#loan-house-list .item-amount').forEach(el => house += parseFloat(el.value) || 0);
             document.getElementById('loan-house-sum').innerText = Math.floor(house).toLocaleString();
@@ -309,11 +306,11 @@
             diffEl.className = "font-mono text-sm font-bold " + (diff >= 0 ? "text-emerald-400" : "text-red-400");
         }
 
-
         async function saveData() {
             const status = document.getElementById('sync-status');
             const indicator = document.getElementById('status-indicator');
             if(status) { status.innerText = "同步連線中"; indicator.className = "status-dot status-syncing"; }
+            
             const data = {
                 you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                 ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
@@ -321,12 +318,26 @@
                 credit_loans: Array.from(document.querySelectorAll('#loan-credit-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                 stocks: { you_tw: document.getElementById('you-stock-tw').value, you_us: document.getElementById('you-stock-us').value, ling_1: document.getElementById('ling-stock-1').value, ling_2: document.getElementById('ling-stock-2').value }
             };
+
             try {
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
-                if(status) { status.innerText = "已成功儲存"; indicator.className = "status-dot status-online"; setTimeout(() => { status.innerText = "連線中"; }, 2000); }
-            } catch (e) { if(status) { status.innerText = "儲存失敗"; indicator.className = "status-dot status-error"; } }
+                
+                // --- 更新時間邏輯 ---
+                const timeString = getFormattedTime();
+                document.getElementById('last-update-time').innerText = timeString;
+                localStorage.setItem('lastSavedTime', timeString); // 儲存在本地，下次開啟還能看到
+                
+                if(status) { 
+                    status.innerText = "已成功儲存"; 
+                    indicator.className = "status-dot status-online"; 
+                    setTimeout(() => { status.innerText = "連線中"; }, 2000); 
+                }
+            } catch (e) { 
+                if(status) { status.innerText = "儲存失敗"; indicator.className = "status-dot status-error"; } 
+            }
         }
 
+        // 其餘函數 (archiveHistory, loadHistoryTable, exportToExcel) 保持不變...
         async function archiveHistory() {
             if (!confirm("確認結算本月數據？系統將會先自動儲存當前明細。")) return;
             try {
@@ -368,11 +379,8 @@
                 if (rows.length <= 1) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10">無紀錄</td></tr>'; return; }
                 tbody.innerHTML = '';
                 rows.slice(1).reverse().forEach(row => {
-                    // --- 修改開始 ---
-                    let d = String(row[0]).replace(/-/g, '/'); // 這裡解決少一天的問題
+                    let d = String(row[0]).replace(/-/g, '/');
                     if(d.includes('T')) d = d.split('T')[0];
-                    // --- 修改結束 ---
-                    
                     const displayDate = d.slice(2); 
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
@@ -387,7 +395,6 @@
                 });
             } catch (e) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
-
 
         function exportToExcel() {
             if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
@@ -450,6 +457,12 @@
         }
 
         async function loadData() {
+            // 從 LocalStorage 載入最後儲存時間
+            const savedTime = localStorage.getItem('lastSavedTime');
+            if (savedTime) {
+                document.getElementById('last-update-time').innerText = savedTime;
+            }
+
             try {
                 const response = await fetch(GAS_URL);
                 const res = await response.json();
