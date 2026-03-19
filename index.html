@@ -77,10 +77,12 @@
                 </div>
                 <div class="flex flex-col items-center">
                     <button onclick="saveData()" class="btn-action tracking-widest uppercase px-10">儲存並更新</button>
-                    <p class="text-[9px] text-slate-400 mt-1 font-mono">最後儲存：<span id="last-update-time">尚未儲存</span></p>
-                    <div class="flex items-center mt-2">
-                        <span id="status-indicator" class="status-dot status-online"></span>
-                        <span id="sync-status" class="text-slate-500 text-[10px] tracking-widest uppercase font-semibold">連線中</span>
+                    <div class="mt-2 text-center">
+                        <div class="flex items-center justify-center">
+                            <span id="status-indicator" class="status-dot status-online"></span>
+                            <span id="sync-status" class="text-slate-500 text-[10px] tracking-widest uppercase font-semibold">連線中</span>
+                        </div>
+                        <div id="last-update-time" class="text-[9px] text-slate-500 mt-1 font-mono uppercase">最後更新時間: 讀取中...</div>
                     </div>
                 </div>
             </div>
@@ -191,9 +193,10 @@
         let fetchedHistory = [];
 
         // 格式化時間函數
-        function getFormattedTime() {
+        function getNowString() {
             const now = new Date();
-            return `${now.getFullYear()}/${(now.getMonth()+1).toString().padStart(2, '0')}/${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${now.getFullYear()}/${pad(now.getMonth()+1)}/${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
         }
 
         function initSortable(id) {
@@ -276,7 +279,9 @@
             let lingMaDeduct = 0;
             document.querySelectorAll('#ling-bank-list > div').forEach(parent => {
                 const name = parent.querySelector('.item-name').value;
-                if (name.includes("玲媽未投")) { lingMaDeduct = parseFloat(parent.querySelector('.item-amount').value) || 0; }
+                if (name.includes("玲媽未投")) {
+                    lingMaDeduct = parseFloat(parent.querySelector('.item-amount').value) || 0;
+                }
             });
 
             const lingStock1 = parseFloat(document.getElementById('ling-stock-1').value) || 0;
@@ -306,12 +311,17 @@
             diffEl.className = "font-mono text-sm font-bold " + (diff >= 0 ? "text-emerald-400" : "text-red-400");
         }
 
+
         async function saveData() {
             const status = document.getElementById('sync-status');
             const indicator = document.getElementById('status-indicator');
+            const timeLabel = document.getElementById('last-update-time');
+            
             if(status) { status.innerText = "同步連線中"; indicator.className = "status-dot status-syncing"; }
             
+            const nowStr = getNowString();
             const data = {
+                last_update: nowStr, // 紀錄本次儲存時間
                 you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                 ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                 house_loans: Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
@@ -321,27 +331,21 @@
 
             try {
                 await fetch(GAS_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(data) });
-                
-                // --- 更新時間邏輯 ---
-                const timeString = getFormattedTime();
-                document.getElementById('last-update-time').innerText = timeString;
-                localStorage.setItem('lastSavedTime', timeString); // 儲存在本地，下次開啟還能看到
-                
                 if(status) { 
                     status.innerText = "已成功儲存"; 
                     indicator.className = "status-dot status-online"; 
+                    timeLabel.innerText = "最後更新時間: " + nowStr; // 成功後立即更新畫面上的時間
                     setTimeout(() => { status.innerText = "連線中"; }, 2000); 
                 }
-            } catch (e) { 
-                if(status) { status.innerText = "儲存失敗"; indicator.className = "status-dot status-error"; } 
-            }
+            } catch (e) { if(status) { status.innerText = "儲存失敗"; indicator.className = "status-dot status-error"; } }
         }
 
-        // 其餘函數 (archiveHistory, loadHistoryTable, exportToExcel) 保持不變...
         async function archiveHistory() {
             if (!confirm("確認結算本月數據？系統將會先自動儲存當前明細。")) return;
             try {
+                const nowStr = getNowString();
                 const currentData = {
+                    last_update: nowStr,
                     you_banks: Array.from(document.querySelectorAll('#you-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                     ling_banks: Array.from(document.querySelectorAll('#ling-bank-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
                     house_loans: Array.from(document.querySelectorAll('#loan-house-list > div')).map(d => ({ name: d.querySelector('.item-name').value, amount: d.querySelector('.item-amount').value })),
@@ -395,6 +399,7 @@
                 });
             } catch (e) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-400 py-10">讀取失敗</td></tr>'; }
         }
+
 
         function exportToExcel() {
             if (fetchedHistory.length === 0) { alert("請先點擊「重新整理」以同步歷史紀錄數據"); return; }
@@ -457,18 +462,21 @@
         }
 
         async function loadData() {
-            // 從 LocalStorage 載入最後儲存時間
-            const savedTime = localStorage.getItem('lastSavedTime');
-            if (savedTime) {
-                document.getElementById('last-update-time').innerText = savedTime;
-            }
-
             try {
                 const response = await fetch(GAS_URL);
                 const res = await response.json();
                 lastMonthNetExclHouse = res.lastMonthNetExclHouse || 0;
                 document.getElementById('last-month-val').innerText = lastMonthNetExclHouse.toLocaleString();
+                
                 const data = res.currentState || {};
+                
+                // 載入最後更新時間
+                if (data.last_update) {
+                    document.getElementById('last-update-time').innerText = "最後更新時間: " + data.last_update;
+                } else {
+                    document.getElementById('last-update-time').innerText = "最後更新時間: 無紀錄";
+                }
+
                 if (data.you_banks?.length) data.you_banks.forEach(b => addRow('you-bank-list', '銀行', b.name, b.amount));
                 if (data.ling_banks?.length) data.ling_banks.forEach(b => addRow('ling-bank-list', '銀行', b.name, b.amount));
                 if (data.house_loans?.length) data.house_loans.forEach(l => addRow('loan-house-list', '名稱', l.name, l.amount));
@@ -479,7 +487,10 @@
                     document.getElementById('ling-stock-1').value = data.stocks.ling_1 || '';
                     document.getElementById('ling-stock-2').value = data.stocks.ling_2 || '';
                 }
-            } catch (e) { console.error(e); }
+            } catch (e) { 
+                console.error(e); 
+                document.getElementById('last-update-time').innerText = "最後更新時間: 讀取失敗";
+            }
             initSortable('you-bank-list'); initSortable('ling-bank-list'); initSortable('loan-house-list'); initSortable('loan-credit-list');
             document.getElementById('archive-date').value = new Date().toISOString().slice(0, 10);
             calculate();
